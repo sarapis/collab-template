@@ -1,0 +1,48 @@
+---
+layout: base.njk
+title: Questions
+permalink: /questions/
+---
+<h1>Questions</h1>
+<p class="counts" id="q-counts">{{ manifest.counts.questions }} total ·
+  {{ manifest.counts.open }} open · {{ manifest.counts.resolved }} resolved</p>
+<p class="counts">Every count on this page is computed by the build. None is typed.</p>
+
+<nav class="filters" id="q-filters" aria-label="Filter questions">
+  <button class="filter" type="button" data-show="all" aria-pressed="true">All</button>
+  <button class="filter" type="button" data-show="waiting">Waiting for you</button>
+  <button class="filter" type="button" data-show="unanswered">Unanswered</button>
+  <button class="filter" type="button" data-show="answered">Answered, not folded in</button>
+</nav>
+<p class="counts" id="q-filter-note"></p>
+
+{% for group in manifest.questions | groups %}
+<h2 id="g-{{ group }}">{{ group }}</h2>
+<div class="cards">
+{% for q in manifest.questions | where_group(group) %}
+  <article class="card {% if q.resolved %}resolved{% else %}open{% endif %}"
+     id="q{{ q.number }}" data-question="{{ q.id }}" data-audience="{{ q.audience }}"
+     data-resolved="{{ 'true' if q.resolved else 'false' }}" data-asked="{{ q.asked }}">
+    <header class="q-head">
+      <a class="q-num" href="/{{ q.doc }}/{% if q.margin %}#q{{ q.number }}{% endif %}">Q{{ q.number }}</a>
+      <span class="q-audience">{{ q.audience }}</span>
+      {% if manifest.asked_rounds[q.asked].new %}<span class="q-audience">· new this round</span>{% endif %}
+    </header>
+    <div class="q-body">{{ q.body | safe }}</div>
+    {% if q.why %}<div class="q-why"><strong>Why asked:</strong> {{ q.why | safe }}</div>{% endif %}
+    {% if q.see.length %}
+      <p class="q-see">Context:
+        {% for r in q.see %}{% if not loop.first %} · {% endif %}{% if r.kind == 'section' %}
+          <a href="/{{ r.doc }}/#{{ r.section }}" data-see-section="{{ r.doc }}#{{ r.section }}">{{ r.title or r.section }}</a>
+        {% else %}
+          <a href="{{ r.url }}" rel="noreferrer" target="_blank">{{ r.label }} ↗</a>
+        {% endif %}{% endfor %}
+      </p>
+    {% endif %}
+    {% if q.resolved %}<p class="q-resolved-note">resolved · see <a href="/{{ q.doc }}/{{ q.resolved }}">this passage</a></p>{% endif %}
+    <div class="q-answers" data-answers-for="{{ q.id }}"
+         data-round-opened="{{ manifest.asked_rounds[q.asked].opened }}"></div>
+  </article>
+{% endfor %}
+</div>
+{% endfor %}

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "collab-site": {
+      "type": "http",
+      "url": "https://collab.example.org/mcp",
+      "headers": { "Authorization": "Bearer ${COLLAB_TOKEN}" }
+    }
+  }
+}

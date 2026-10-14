@@ -1,0 +1,16 @@
+---
+layout: base.njk
+title: Decision log
+permalink: /decisions/
+---
+<h1>Decision log</h1>
+<p>Choices made and why, newest first. A decision recorded with its reasoning is
+what lets somebody six months from now disagree with it on the merits instead of
+re-deriving it.</p>
+{% set items = manifest.docs | of_type("decision") %}
+{% for p in items %}
+<article class="card" style="margin-top:1.4rem">
+  <p class="counts">{{ p.date }} · <a href="/{{ p.slug }}/">permalink</a></p>
+  {{ p.slug | fragment | safe }}
+</article>
+{% endfor %}

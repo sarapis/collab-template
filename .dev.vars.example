@@ -1,0 +1,26 @@
+# Copy to .dev.vars for local development. .dev.vars is gitignored and is the
+# ONLY place a real secret belongs on this machine.
+#
+# ⚠️ Do not paste any value from this file into a chat. A secret that has been
+# in a transcript is a secret that must be rotated, not one you can take back.
+
+
+# Per-person agent tokens, stored as sha256 of 32 random bytes. See docs/SETUP.md
+# for the command that generates one and prints only the hash.
+AGENT_TOKENS={"devin":"sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+
+# The address the site is deployed with: the bootstrap admin. It works when the
+# users table is empty and cannot be demoted, disabled or removed from inside the
+# site. Everyone else lives in the database and is managed at /admin/people.
+ROOT_ADMIN=you@example.org
+
+# Signs the session cookie. Any long random string locally.
+SESSION_SECRET=local-development-only-not-a-real-secret
+
+# Providers. Leave a block out entirely to disable that provider.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+RESEND_API_KEY=
+MAGIC_LINK_FROM=noreply@example.org

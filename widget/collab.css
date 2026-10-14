@@ -1,0 +1,77 @@
+/* Shipped with the widget so an embedding host gets usable answers without
+   adopting this project's stylesheet. Deliberately uses the same token names
+   the host's design system already defines, and falls back where it does not. */
+.q-answer-body { white-space: pre-wrap; }
+.q-answer .btn { margin-top: .4rem; }
+.q-form { margin-top: .6rem; display: grid; gap: .4rem; justify-items: start; }
+.q-answer + .q-form { border-top: 1px solid var(--border, #ddd); padding-top: .5rem; }
+.rail select { font: inherit; font-family: var(--font-sans, sans-serif); width: 100%; padding: .3rem;
+  border: 1px solid var(--border, #ddd); border-radius: var(--radius, 4px); background: var(--background, #fff); color: var(--foreground, #000); }
+.chat-thread { display: grid; gap: .8rem; margin: 1.2rem 0; }
+.chat-turn { border: 1px solid var(--border, #ddd); border-radius: var(--radius, 6px); padding: .7rem .9rem; background: var(--card, #fff); }
+.chat-turn.you { border-left: 3px solid var(--primary, #555); }
+.chat-turn .who { font-size: .76rem; color: var(--muted-foreground, #666); margin: 0 0 .3rem; }
+.chat-turn .body { white-space: pre-wrap; }
+.chat-session { cursor: pointer; }
+.q-see { font-size: .82rem; color: var(--muted-foreground, #666); margin: .6rem 0 0; }
+.q-see a { text-decoration: none; border-bottom: 1px dotted currentColor; }
+.q-see a.open { border-bottom-style: solid; font-weight: 600; }
+.q-context { margin: .8rem 0 0; padding: .8rem 1rem; border-left: 3px solid var(--border, #ddd);
+  background: var(--muted, #f5f5f5); border-radius: var(--radius, 6px); font-size: .9rem; }
+.q-context > :first-child { margin-top: 0; }
+.q-context > :last-child { margin-bottom: 0; }
+.q-context h2, .q-context h3 { font-size: 1rem; margin: 0 0 .4rem; }
+.q-context-out { display: inline-block; margin-top: .6rem; font-size: .82rem; }
+/* Why a write was refused, under the form that was refused. Empty until there
+   is something to say, so it costs no space in the ordinary case. */
+.q-msg:empty { display: none; }
+.q-msg { font-size: .8rem; color: var(--warning-line, #8a5a00); margin: 0; max-width: 46ch; }
+.q-answer-stale { opacity: .75; }
+.q-stale-note { font-size: .76rem; color: var(--warning-line, #8a5a00); margin: 0 0 .3rem;
+  font-weight: 600; }
+
+/* The assistant, bottom right, on every page.
+   ⚠️ It sits above the content rather than beside it because a question about
+   what you are reading should not cost you the page you are reading — the same
+   reason a cited passage expands in place rather than navigating away. */
+.chat-open { position: fixed; right: 1.1rem; bottom: 1.1rem; z-index: 40;
+  font-family: var(--font-sans, sans-serif); font-size: .9rem; font-weight: 500; cursor: pointer;
+  padding: .65rem 1.2rem; border-radius: 999px; border: 1px solid var(--primary, #555);
+  background: var(--primary, #555); color: var(--primary-foreground, #fff);
+  box-shadow: var(--shadow-card, 0 2px 8px rgb(0 0 0 / .15)); }
+.chat-open:hover { opacity: .93; }
+.chat-open:focus-visible, .chat-close:focus-visible { outline: 2px solid var(--ring, #888); outline-offset: 2px; }
+.chat-open[hidden] { display: none; }
+
+.chat-panel { position: fixed; right: 1.1rem; bottom: 1.1rem; z-index: 40;
+  width: min(23rem, calc(100vw - 2.2rem)); max-height: min(34rem, calc(100vh - 2.2rem));
+  display: flex; flex-direction: column;
+  background: var(--card, #fff); border: 1px solid var(--border, #ddd);
+  border-radius: calc(var(--radius, 8px) * 1.6); box-shadow: var(--shadow-card, 0 8px 32px rgb(0 0 0 / .18));
+  font-family: var(--font-sans, sans-serif); overflow: hidden; }
+.chat-panel[hidden] { display: none; }
+.chat-head { display: flex; align-items: center; gap: .6rem; padding: .8rem 1rem;
+  border-bottom: 1px solid var(--border, #ddd); font-size: .92rem; }
+.chat-head strong { flex: 1 1 auto; }
+.chat-log-link { font-size: .78rem; color: var(--muted-foreground, #666); text-decoration: none; }
+.chat-log-link:hover { color: var(--primary, #555); }
+.chat-close { font-size: 1.3rem; line-height: 1; background: none; border: 0; cursor: pointer;
+  color: var(--muted-foreground, #666); padding: 0 .2rem; }
+.chat-note { margin: 0; padding: .7rem 1rem; font-size: .76rem; line-height: 1.45;
+  color: var(--muted-foreground, #666); background: var(--muted, #f5f5f5);
+  border-bottom: 1px solid var(--border, #ddd); }
+.chat-panel .chat-thread { flex: 1 1 auto; overflow-y: auto; padding: .9rem 1rem;
+  display: grid; gap: .7rem; margin: 0; }
+.chat-compose { display: flex; gap: .5rem; align-items: flex-end; padding: .8rem 1rem;
+  border-top: 1px solid var(--border, #ddd); }
+.chat-compose textarea { flex: 1 1 auto; resize: none; font: inherit; font-size: .9rem;
+  padding: .5rem .6rem; border: 1px solid var(--input, #ddd); border-radius: var(--radius, 6px);
+  background: var(--background, #fff); color: var(--foreground, #000); }
+.chat-compose textarea:focus { outline: none; border-color: var(--ring, #888); }
+.chat-compose .btn { flex: 0 0 auto; }
+
+@media (max-width: 30rem) {
+  /* On a phone a floating card is just a smaller page with less room. */
+  .chat-panel { right: 0; bottom: 0; width: 100vw; max-height: 80vh;
+    border-radius: calc(var(--radius, 8px) * 1.6) calc(var(--radius, 8px) * 1.6) 0 0; }
+}

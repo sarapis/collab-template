@@ -1,0 +1,11 @@
+---
+pagination:
+  data: renderable
+  size: 1
+  alias: doc
+layout: base.njk
+eleventyComputed:
+  title: "{{ doc.title }}"
+  permalink: "/{{ doc.slug }}/"
+---
+{{ doc.slug | fragment | safe }}

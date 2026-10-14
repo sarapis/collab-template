@@ -1,0 +1,7 @@
+---
+title: Summary prose
+partial: true
+---
+
+The project has <i data-figure="counts.questions">5</i> questions, of which
+<i data-figure="counts.open">2</i> are open.

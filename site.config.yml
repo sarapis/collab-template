@@ -1,0 +1,71 @@
+# ⚠️ THIS FILE IS THE INSTANCE'S. Everything that differs between two sites built
+# from sarapis/collab-template is here, in content/, in wrangler.jsonc, in
+# design/tokens.css or under instance/ (TEMPLATE.md lists them all). The values
+# below are the template's SAMPLE project; a fork replaces them.
+
+project:
+  id: sample
+  name: Sample Project
+  tagline: A worked example of a collaboration site, to fork and replace.
+
+# `private`: every page, /api/ and /mcp need a sign-in (worker/src/identity.js
+# canRead). `public`: anyone may read; writes stay roster-only. ⚠️ Keep this in
+# step with PUBLIC_READ in wrangler.jsonc, which is what the Worker obeys.
+auth:
+  read: private
+  # ⚠️ There is no `providers:` list. A provider is on when its credentials
+  # exist (worker/src/auth.js `enabled()`); the gate refuses the key.
+  # ⚠️ There is no roster here either. People live in the database, managed
+  # from /admin/people, so no address is in this repository or its history.
+
+# Who a question is addressed to. Roles or people, but declared here: a question
+# naming an undeclared audience fails the build.
+audiences:
+  team:
+    name: The project team
+    describes: "The people doing the work. Questions addressed to them are about scope, method and what to publish."
+  reviewers:
+    name: Reviewers
+    describes: "People asked to check the work before it goes out."
+
+# ⚠️ Every round declares when it OPENED: an answer written before the round a
+# question is now in was an answer to an earlier version of it.
+asked_rounds:
+  r1:
+    label: "The first questions, written with the sample documents"
+    new: true
+    opened: 2026-10-01
+
+# Named things outside this repo that a question can point at with `see=`.
+references:
+  template:
+    url: https://github.com/sarapis/collab-template
+    label: the collab-template repository
+
+# What /llms.txt says. On a private instance it is a short note built only from
+# these named fields, never from the manifest. On a public one it is an index
+# built from the manifest (scripts/build-worker-data.mjs).
+public:
+  llms_txt: true
+  repo: https://github.com/sarapis/collab-template
+  # ⚠️ Not a person's address: the gate rejects any human address in the repo.
+  contact: the project team
+
+chat:
+  enabled: true
+  retention_days: 90
+
+# The instance's own additions to the host. Every key is optional.
+site:
+  # Self-contained pages served as-is: {from, to}. The gate exempts each from the
+  # checks that assume this site's layout.
+  passthrough: []
+  nav:
+    # Extra sidebar links under Artifacts, ahead of the design system: {href, label}.
+    artifacts: []
+
+gate:
+  # Ids and hostnames of OTHER instances (D1, KV, custom domains), which this one
+  # must never point at. The gate fails if wrangler.jsonc, .mcp.json or the
+  # README names one.
+  foreign_resources: []

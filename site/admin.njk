@@ -1,0 +1,24 @@
+---
+layout: base.njk
+title: Admin
+permalink: /admin/
+---
+<h1>Admin</h1>
+<p class="lede">Who can reach this project, and what people have asked it.</p>
+
+<div class="cards" id="admin-only" hidden>
+  <article class="card">
+    <p><a href="/admin/people/"><strong>People</strong></a></p>
+    <p class="counts">Add someone, change a role, or take access away. Every change
+      is recorded and the record cannot be edited.</p>
+  </article>
+  <article class="card">
+    <p><a href="/admin/log/"><strong>Conversation log</strong></a></p>
+    <p class="counts">Every question anyone has asked the assistant. A recurring
+      question is a question that belongs in the catalog, or a passage that needs
+      rewriting.</p>
+  </article>
+</div>
+
+<p class="muted" id="admin-denied" hidden>This section is for administrators. If you
+need something here, ask whoever runs the project.</p>

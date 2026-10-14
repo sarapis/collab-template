@@ -1,0 +1,275 @@
+* { box-sizing: border-box; }
+/* next.sarapis.org sets --default-font-family to --font-sans and reserves
+   Fraunces for display, so prose is Geist and headings are Fraunces here too. */
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); line-height: 1.65; }
+h1, h2, h3, h4 { font-family: var(--font-serif); font-weight: 600; letter-spacing: -0.01em; }
+a { text-underline-offset: 2px; }
+a { color: var(--primary); }
+.muted, .counts { color: var(--muted-foreground); font-family: var(--font-sans); font-size: .85rem; }
+.lede { font-size: 1.1rem; color: var(--muted-foreground); margin-top: -.2rem; }
+
+/* One menu on the left carrying everything, content in the middle, one rail on
+   the right that switches between Contents and Comments. The rail holds only
+   whole-document things; anything anchored to a passage stays in the passage. */
+.shell { display: grid; grid-template-columns: minmax(0,1fr); gap: 0; }
+@media (min-width: 64rem) {
+  .shell { grid-template-columns: 15rem minmax(0,1fr) 17rem; gap: 2.5rem; max-width: 84rem; margin: 0 auto; padding-right: 1.5rem; }
+}
+
+.sidebar { font-family: var(--font-sans); padding: 1.2rem 1rem; border-bottom: 1px solid var(--border); background: var(--sidebar); }
+@media (min-width: 64rem) {
+  /* A column, so the account block can sit at the bottom rather than competing
+     with the project name for the top-left corner. */
+  .sidebar { border-bottom: 0; border-right: 1px solid var(--border); height: 100vh;
+    position: sticky; top: 0; overflow-y: auto; display: flex; flex-direction: column; }
+  .menu-wrap { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  .menu { flex: 0 0 auto; }
+  .sidebar-foot { margin-top: auto; }
+}
+.brand { display: block; font-family: var(--font-serif); font-weight: 600; font-size: 1.1rem; text-decoration: none; color: var(--foreground); }
+/* Collapsed on a phone, always open on a desktop, with no JavaScript in it --
+   the sidebar is the only navigation on the page, so it must not need a script.
+   ⚠️ NOT <details>. Modern browsers hide a closed details' content through
+   ::details-content, which an author `display` rule no longer overrides, so the
+   menu vanished on desktop. A checkbox is plain CSS the media query can undo. */
+.sidebar-top { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.menu-check { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.menu-toggle { display: block; cursor: pointer; margin-top: .8rem; font-size: .8rem;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); font-weight: 600; }
+.menu-toggle::after { content: " \25be"; }
+.menu-check:checked ~ .menu-toggle::after { content: " \25b4"; }
+.menu-check:not(:checked) ~ .menu-wrap { display: none; }
+.menu-check:focus-visible ~ .menu-toggle { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ⚠️ This block must come AFTER the collapse rules above. Same specificity is
+   decided by source order, and putting it with the other sidebar rules -- where
+   it reads like it belongs -- silently lost to the mobile rule and hid the menu
+   on desktop. */
+@media (min-width: 64rem) {
+  .menu-toggle, .menu-check { display: none; }
+  .menu-check:not(:checked) ~ .menu-wrap { display: block; }
+}
+.menu { display: flex; flex-direction: column; gap: .15rem; margin-top: 1rem; font-size: .9rem; }
+.menu a { text-decoration: none; padding: .25rem .45rem; border-radius: var(--radius); color: var(--muted-foreground); }
+.menu a:hover { background: var(--accent); color: var(--accent-foreground); }
+/* The active item. Previously only a document could be current, so every
+   project page -- Questions, Activity, Design -- looked like nothing was
+   selected, on the pages people spend the most time on. */
+.menu a[aria-current="page"] { background: var(--accent); color: var(--accent-foreground);
+  font-weight: 600; box-shadow: inset 2px 0 0 var(--primary); }
+.menu-head { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground);
+  margin: 1rem 0 .3rem; font-weight: 600; }
+/* The foot: Chat, Notifications, Account. These are about you and the moment,
+   not about the project, so they sit apart from the navigation rather than
+   competing with it. */
+.sidebar-foot { padding-top: .6rem; margin-top: 1.4rem; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: .15rem; }
+.foot-link { display: block; font-size: .9rem; text-decoration: none; color: var(--muted-foreground);
+  padding: .25rem .45rem; border-radius: var(--radius); }
+.foot-link:hover { background: var(--accent); color: var(--accent-foreground); }
+.foot-link[aria-current="page"] { background: var(--accent); color: var(--accent-foreground);
+  font-weight: 600; box-shadow: inset 2px 0 0 var(--primary); }
+/* ⚠️ "Has something in it" and "you are here" must not look the same. The first
+   version gave has-news the accent background that marks the current page, so
+   Notifications looked selected from every page that had any. Only the COUNT
+   changes now; the row itself stays an ordinary item until you are on it. */
+.badge { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.badge.has-news { font-weight: 500; color: var(--foreground); }
+.badge .count { font-variant-numeric: tabular-nums; font-size: .72rem; font-weight: 600;
+  line-height: 1; padding: .2rem .45rem; border-radius: 999px;
+  background: var(--primary); color: var(--primary-foreground); }
+.badge[aria-current="page"] .count { background: var(--primary-foreground); color: var(--primary); }
+.who-row { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; font-size: .78rem; }
+.who-name { color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who-out { color: var(--muted-foreground); text-decoration: none; flex: 0 0 auto; }
+.who-out:hover { color: var(--primary); text-decoration: underline; }
+.who-out[hidden] { display: none; }
+
+/* Prose is held to --measure for readability; anything that needs the room
+   takes the whole column. Constraining the COLUMN instead meant a three-column
+   table had to fit in 36rem, which is why it looked crushed. */
+main { min-width: 0; padding: 2rem 1rem 6rem; }
+@media (min-width: 64rem) { main { padding: 2.5rem 0 7rem; } }
+main > * { max-width: var(--measure); }
+main > table, main > pre, main > .wide { max-width: 100%; }
+main h1 { line-height: 1.12; font-size: 2.25rem; margin-bottom: .4rem; }
+main h2 { margin-top: 2.8rem; font-size: 1.5rem; }
+main h3 { font-size: 1.15rem; }
+main { font-size: 1.02rem; }
+main code { font-family: var(--font-mono); font-size: .9em; overflow-wrap: anywhere; }
+main pre { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: .8rem; overflow-x: auto; }
+main pre code { overflow-wrap: normal; }
+main pre code[class^="language-"] { color: inherit; }
+
+/* The brief for an AI assistant: the same words a person could read, in a
+   register that says plainly it is not addressed to them. Smaller, monospace,
+   and kept as literal markdown so whatever reads it gets clean source rather
+   than styled prose it has to undo. */
+main pre:has(> code.language-markdown) { font-size: .78rem; line-height: 1.5;
+  background: var(--muted); border-color: var(--border); }
+main pre:has(> code.language-markdown) code { color: var(--muted-foreground); }
+
+/* Tables had no styling at all: browser defaults, no rules, no padding, in a
+   column too narrow to hold them. */
+main table { width: 100%; border-collapse: collapse; margin: 1.6rem 0;
+  font-family: var(--font-sans); font-size: .92rem; line-height: 1.5; }
+main thead th { text-align: left; font-weight: 600; font-size: .78rem;
+  text-transform: uppercase; letter-spacing: .05em; color: var(--muted-foreground);
+  padding: 0 .9rem .5rem 0; border-bottom: 1px solid var(--border); white-space: nowrap; }
+main tbody td { padding: .7rem .9rem .7rem 0; border-bottom: 1px solid var(--border);
+  vertical-align: top; }
+main tbody tr:last-child td { border-bottom: 0; }
+main tbody tr:hover { background: var(--muted); }
+/* First column carries the row's name; it should read as the label it is. */
+main tbody td:first-child { font-weight: 600; color: var(--foreground); }
+main th:last-child, main td:last-child { padding-right: 0; }
+/* ⚠️ A table that cannot shrink pushes the whole page sideways on a phone. It
+   scrolls inside its own box instead. */
+.table-scroll { overflow-x: auto; max-width: 100%; margin: 1.6rem 0; }
+.table-scroll > table { margin: 0; min-width: 34rem; }
+
+.rail { font-family: var(--font-sans); font-size: .85rem; padding: 0 1rem 3rem; }
+@media (min-width: 64rem) { .rail { padding: 2.5rem 0 3rem; position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; } }
+
+/* The rail is dismissable, and the choice is remembered per reader. With it
+   closed the content column takes the width back -- which matters most on the
+   pages that carry tables. */
+.rail-switch { position: fixed; top: .9rem; right: .9rem; z-index: 20;
+  font-family: var(--font-sans); font-size: .78rem; cursor: pointer;
+  border: 1px solid var(--border); background: var(--card); color: var(--muted-foreground);
+  border-radius: 999px; padding: .3rem .75rem; }
+.rail-switch:hover { color: var(--primary); border-color: var(--ring); }
+@media (min-width: 64rem) {
+  :root[data-rail="closed"] .shell { grid-template-columns: 15rem minmax(0,1fr); }
+}
+:root[data-rail="closed"] .rail { display: none; }
+.rail-tabs { display: flex; gap: .3rem; border-bottom: 1px solid var(--border); margin-bottom: .7rem; }
+.rail-tab { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted-foreground);
+  padding: .3rem .5rem; cursor: pointer; }
+.rail-tab[aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--primary); font-weight: 600; }
+.toc ol { list-style: none; padding: 0; margin: 0; }
+.toc li { margin: .3rem 0; } .toc .l2 { font-weight: 500; } .toc .l3 { padding-left: .8rem; font-weight: 400; }
+.toc a { text-decoration: none; color: var(--muted-foreground); }
+.toc a:hover { color: var(--primary); }
+.rail-comments[hidden], .toc[hidden] { display: none; }
+
+/* A question is CONTENT and sits where it was written. Not a float: a floated
+   note needs a reserved column, and the column that used to reserve it is now
+   the contents rail. Inline also means one rendering at every width. */
+aside.q { font-family: var(--font-sans); font-size: .88rem; background: var(--card); border: 1px solid var(--border);
+  border-left: 3px solid var(--primary); border-radius: var(--radius); padding: .75rem .9rem; margin: 1.4rem 0; }
+aside.q.q-open { border-left-color: var(--primary); }
+aside.q.q-resolved { border-left-color: var(--success-line); opacity: .85; }
+.q-head { display: flex; gap: .5rem; align-items: baseline; margin-bottom: .35rem; }
+.q-num { font-weight: 700; text-decoration: none; }
+.q-audience { color: var(--muted-foreground); font-size: .78rem; }
+.q-body p:first-child { margin-top: 0; } .q-body p:last-child { margin-bottom: 0; }
+.q-why { color: var(--muted-foreground); font-size: .82rem; margin-top: .5rem; border-top: 1px dashed var(--border); padding-top: .4rem; }
+.q-resolved-note { color: var(--success-line); font-size: .8rem; }
+.q-answers:empty { display: none; }
+.q-answer { border-top: 1px solid var(--border); margin-top: .6rem; padding-top: .5rem; }
+.q-answer .who { color: var(--muted-foreground); font-size: .76rem; }
+.q-edited { color: var(--warning-line); }
+.q-form textarea, .rail textarea { width: 100%; font: inherit; font-family: var(--font-sans); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: .4rem; background: var(--background); color: var(--foreground); }
+.q-form button, .btn { font-family: var(--font-sans); font-size: .85rem; border: 1px solid var(--border); background: var(--primary);
+  color: var(--card); border-radius: var(--radius); padding: .35rem .8rem; cursor: pointer; }
+
+.cards { display: grid; gap: 1rem; }
+/* The orientation card on the summary.
+   ⚠️ Styled as the one thing on the page you can click into, not as another
+   card: once `/` stops sending a returning reader to /start/ and the menu item
+   moves to the bottom, this is the only signpost left, and a signpost that
+   looks like the surrounding furniture is not one. */
+.orient { display: block; text-decoration: none; color: inherit;
+  background: var(--accent); border: 1px solid var(--border);
+  border-left: 4px solid var(--primary); border-radius: var(--radius);
+  padding: .9rem 1.1rem; margin: 1.2rem 0 1.6rem; box-shadow: var(--shadow-card); }
+.orient:hover, .orient:focus-visible { border-left-color: var(--ring); background: var(--card); }
+.orient-kicker { display: block; font-family: var(--font-sans); font-size: .72rem;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--accent-foreground); }
+.orient-title { display: block; font-family: var(--font-serif); font-size: 1.25rem;
+  color: var(--primary); margin: .1rem 0 .3rem; }
+.orient-detail { display: block; font-family: var(--font-sans); font-size: .88rem;
+  color: var(--muted-foreground); max-width: var(--measure); }
+
+/* A notification that is new since the last visit. The card still renders when
+   it is not new — only the flag and the edge go. */
+.card.is-new { border-left-width: 4px; background: var(--accent); }
+.is-new-flag { font-family: var(--font-sans); font-size: .68rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--primary-foreground); background: var(--primary);
+  border-radius: calc(var(--radius) / 2); padding: .1rem .4rem; margin-left: .5rem; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+.card.resolved { border-left: 3px solid var(--success-line); }
+.card.open { border-left: 3px solid var(--primary); }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .8rem; }
+.swatch { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; font-family: var(--font-sans); font-size: .78rem; }
+.swatch .chip { height: 3.4rem; } .swatch .label { padding: .4rem .5rem; background: var(--card); }
+.note { background: var(--warning); border-left: 3px solid var(--warning-line); padding: .7rem .9rem; border-radius: var(--radius);
+  font-family: var(--font-sans); font-size: .88rem; }
+
+/* The worksheet filters. "Answered" is live data, so these apply after the
+   answers load — until then everything is shown, which is the right way round:
+   a reader who arrives early sees the questions rather than an empty page. */
+.filters { display: flex; flex-wrap: wrap; gap: .4rem; margin: 1.2rem 0 .6rem; }
+.filter { font: inherit; font-family: var(--font-sans); font-size: .82rem; cursor: pointer;
+  padding: .3rem .7rem; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--card); color: var(--muted-foreground); }
+.filter:hover { border-color: var(--ring); color: var(--foreground); }
+.filter[aria-pressed="true"] { background: var(--accent); color: var(--accent-foreground);
+  border-color: var(--ring); font-weight: 600; }
+.filter:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.cards[hidden], .card[hidden], h2[hidden] { display: none; }
+
+/* People. A table because it is a table: five columns of the same shape. */
+table.people { width: 100%; border-collapse: collapse; margin: 1.4rem 0;
+  font-family: var(--font-sans); font-size: .9rem; }
+table.people th { text-align: left; font-size: .74rem; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--muted-foreground); font-weight: 600;
+  padding: 0 .8rem .45rem 0; border-bottom: 1px solid var(--border); }
+table.people td { padding: .6rem .8rem .6rem 0; border-bottom: 1px solid var(--border);
+  vertical-align: middle; }
+table.people tr.disabled td { opacity: .5; }
+table.people select, table.people input { font: inherit; font-size: .85rem; padding: .3rem .4rem;
+  border: 1px solid var(--input); border-radius: var(--radius);
+  background: var(--background); color: var(--foreground); }
+table.people select:disabled { opacity: .6; cursor: not-allowed; }
+.btn.small { font-size: .78rem; padding: .25rem .6rem; }
+/* It wrapped onto two lines and doubled the row's height, which made one row
+   look like a different kind of thing from the others. */
+.tag { display: inline-block; margin-left: .5rem; font-size: .66rem; text-transform: uppercase;
+  letter-spacing: .05em; padding: .1rem .45rem; border-radius: 999px; white-space: nowrap;
+  vertical-align: middle; background: var(--accent); color: var(--accent-foreground); }
+table.people td:first-child { white-space: nowrap; }
+.menu-admin[hidden], #admin-only[hidden], #admin-people[hidden],
+#admin-denied[hidden], #people-denied[hidden] { display: none; }
+.menu-admin { display: contents; }
+/* Forms outside the answer boxes: the admin add-person form, and anything else
+   that is a real form rather than a single textarea. */
+.form { max-width: 26rem; margin: 1.2rem 0 0; }
+.field { margin-bottom: 1rem; }
+.form label { display: block; font-family: var(--font-sans); font-size: .8rem;
+  font-weight: 600; letter-spacing: .01em; margin: 0 0 .35rem; color: var(--foreground); }
+.form input, .form select {
+  width: 100%; font: inherit; font-family: var(--font-sans); font-size: .93rem;
+  padding: .55rem .65rem; border: 1px solid var(--input); border-radius: var(--radius);
+  background: var(--background); color: var(--foreground);
+  transition: border-color .12s ease, box-shadow .12s ease; }
+.form input::placeholder { color: var(--muted-foreground); opacity: .7; }
+.form input:hover, .form select:hover { border-color: var(--ring); }
+.form input:focus, .form select:focus { outline: none; border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent); }
+.form .hint { font-family: var(--font-sans); font-size: .78rem; color: var(--muted-foreground);
+  margin: .35rem 0 0; }
+.form .btn { margin-top: .2rem; }
+
+/* The same treatment inside the people table, so a row's controls do not look
+   like a different product from the form beneath them. */
+table.people select, table.people input {
+  font-family: var(--font-sans); font-size: .85rem; padding: .35rem .5rem;
+  border: 1px solid var(--input); border-radius: var(--radius);
+  background: var(--background); color: var(--foreground); }
+table.people select:hover, table.people input:hover { border-color: var(--ring); }
+table.people select:focus, table.people input:focus { outline: none; border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent); }

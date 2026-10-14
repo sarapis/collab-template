@@ -1,0 +1,41 @@
+---
+layout: base.njk
+title: Settings
+permalink: /admin/settings/
+---
+<h1>Settings</h1>
+<p class="lede">Keys this site needs, set from here instead of from a terminal.</p>
+
+<p class="muted" id="settings-denied" hidden>This page is for administrators.
+If you are signed in and seeing this, your account is not one — ask an admin on
+<a href="/admin/people/">the people page</a>. If you are not signed in,
+<a href="/auth/login">sign in</a> first.</p>
+
+<div id="admin-settings" hidden>
+  <div class="note">
+    <p><strong>A secret is never shown back.</strong> For a masked field this
+    page can tell you that a value is set, when, and by whom — never what it is.
+    A screen that can show a key back is a screen that leaks every key to anyone
+    who reaches it once.</p>
+    <p><strong>Plain fields are the ones that are public by nature</strong> — an
+    address you could read on the people page anyway, a Google client id that
+    appears in every visitor's OAuth redirect. Those show their current value so
+    you can edit rather than retype. Masking them would teach you that the
+    asterisks elsewhere mean nothing.</p>
+    <p>Stored values are encrypted with this instance's <code>SETTINGS_KEY</code>
+    and win over anything set at deploy time. Clearing one falls back to the
+    deploy-time value if there is one.</p>
+  </div>
+
+  <p class="counts" id="settings-unavailable" hidden></p>
+
+  <table class="people"><thead>
+    <tr><th>Key</th><th>What it does</th><th>State</th><th></th></tr>
+  </thead><tbody id="settings-rows"></tbody></table>
+
+  <p class="counts">⚠️ <strong>SESSION_SECRET</strong> and <strong>ROOT_ADMIN</strong>
+  are not here and cannot be. The first verifies the session of the admin who
+  would be changing it; the second has to work when this database is empty,
+  which is exactly when it cannot be the place it is kept. Both stay
+  <code>wrangler secret put</code>.</p>
+</div>

@@ -1,0 +1,14 @@
+{
+  "name": "@collab/compile",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Markdown + inline questions -> HTML fragments, questions.lock, manifest.json. Host-agnostic by design: Eleventy calls this, and so does any product embedding the question loop.",
+  "main": "src/index.js",
+  "bin": { "collab-compile": "src/cli.js" },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-anchor": "^9.2.0",
+    "markdown-it-container": "^4.0.0"
+  }
+}

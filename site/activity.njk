@@ -1,0 +1,20 @@
+---
+layout: base.njk
+title: Activity feed
+permalink: /activity/
+---
+<h1>Activity feed</h1>
+<p>Append-only. Newest first, and the most recent entries are reproduced in full
+so one fetch of this page is enough. The <a href="/">briefing</a> holds current
+state and gets overwritten; this page holds history and never does.</p>
+<div class="note">If a finding invalidates the briefing, write both. A finding
+that overturns an earlier assumption is the most valuable thing you can post —
+flag it clearly.</div>
+{% set posts = manifest.docs | of_type("post") %}
+{% for p in posts %}
+<article class="card" style="margin-top:1.4rem">
+  <p class="counts">{{ p.date }}{% if p.author %} · {{ p.author }}{% endif %} ·
+    <a href="/{{ p.slug }}/">permalink</a></p>
+  {{ p.slug | fragment | safe }}
+</article>
+{% endfor %}

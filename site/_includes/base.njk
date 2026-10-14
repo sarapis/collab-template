@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} · {{ site.project.name }}</title>
+<meta name="collab-doc" content="{{ doc.slug if doc else '' }}">
+<link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/collab.css">
+</head>
+<body>
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <a class="brand" href="/">{{ site.project.name }}</a>
+    </div>
+    <input type="checkbox" class="menu-check" id="menu-check">
+    <label class="menu-toggle" for="menu-check">Menu</label>
+    <div class="menu-wrap">
+      <nav class="menu">
+        <p class="menu-head">{{ nav.groups[0].label }}</p>
+        {% for item in nav.groups[0].items %}
+          <a href="{{ item.href }}"
+             {% if page.url == item.href %}aria-current="page"{% endif %}>{{ item.label }}</a>
+        {% endfor %}
+
+        {# ⚠️ By index, not `| last`: adding the Data group after Artifacts would
+           otherwise silently retarget this and render the wrong group, which is
+           the class of Nunjucks failure that has already shipped twice here. #}
+        {% set artifacts = nav.groups[2] %}
+        <p class="menu-head">{{ artifacts.label }}</p>
+        {% for d in manifest.docs | documents %}
+          {% set href = '/' + d.slug + '/' %}
+          <a href="{{ href }}" {% if page.url == href %}aria-current="page"{% endif %}>{{ d.title }}</a>
+        {% endfor %}
+        {% for item in artifacts.items %}
+          <a href="{{ item.href }}"
+             {% if page.url == item.href %}aria-current="page"{% endif %}>{{ item.label }}</a>
+        {% endfor %}
+
+        {% set data = nav.groups[3] %}
+        {% if manifest.docs | of_type("data") | length %}
+          <p class="menu-head">{{ data.label }}</p>
+          {% for d in manifest.docs | of_type("data") %}
+            {% set href = '/' + d.slug + '/' %}
+            <a href="{{ href }}" {% if page.url == href %}aria-current="page"{% endif %}>{{ d.title }}</a>
+          {% endfor %}
+        {% endif %}
+
+        {% set admin = nav.groups[1] %}
+        <div class="menu-admin" id="menu-admin" hidden>
+          <p class="menu-head">{{ admin.label }}</p>
+          {% for item in admin.items %}
+            <a href="{{ item.href }}"
+               {% if page.url == item.href %}aria-current="page"{% endif %}>{{ item.label }}</a>
+          {% endfor %}
+        </div>
+      </nav>
+
+      <div class="sidebar-foot">
+        <a class="foot-link badge" id="collab-badge" href="/notifications/"
+           {% if page.url == '/notifications/' %}aria-current="page"{% endif %}>Notifications</a>
+        <div class="who-row">
+          <span class="who-name" id="collab-user">Account</span>
+          <a class="who-out" id="collab-signout" href="/auth/logout" hidden>Sign out</a>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main>{{ content | safe }}</main>
+
+  <button class="rail-switch" type="button" id="rail-switch" aria-controls="rail" aria-expanded="true">Hide contents</button>
+
+  <aside class="rail" id="rail">
+    <div class="rail-tabs" role="tablist">
+      <button class="rail-tab" type="button" data-rail="contents" aria-selected="true">Contents</button>
+      <button class="rail-tab" type="button" data-rail="comments" aria-selected="false">Comments</button>
+    </div>
+    <nav class="toc" id="rail-contents"></nav>
+    <div class="rail-comments" id="rail-comments" hidden data-comments-for="{{ doc.slug if doc else '' }}">
+      <p class="muted">Comments load when you are signed in.</p>
+    </div>
+  </aside>
+
+</div>
+{% if site.chat.enabled %}
+<!-- The assistant, on every page rather than on a page of its own: a question
+     about what you are reading should not cost you the page you are reading. -->
+<button class="chat-open" type="button" id="chat-open" aria-expanded="false" aria-controls="chat-panel">Ask</button>
+<section class="chat-panel" id="chat-panel" hidden aria-label="Ask about this project">
+  <header class="chat-head">
+    <strong>Ask about this project</strong>
+    <a class="chat-log-link" href="/admin/log/">Log</a>
+    <button class="chat-close" type="button" id="chat-close" aria-label="Close">&times;</button>
+  </header>
+  <p class="chat-note">Answers come from what is published here. It cannot change
+    anything. <strong>This conversation is stored and the team can read it</strong> —
+    kept for {{ site.chat.retention_days }} days.</p>
+  <div class="chat-thread" id="chat-thread"></div>
+  <div class="chat-compose">
+    <textarea id="chat-input" rows="2" placeholder="Ask something about this project"></textarea>
+    <button class="btn" type="button" id="chat-send">Ask</button>
+  </div>
+</section>
+{% endif %}
+<script src="/collab.js" defer></script>
+</body>
+</html>

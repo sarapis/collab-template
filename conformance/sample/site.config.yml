@@ -1,0 +1,22 @@
+# The conformance project (HOST-CONTRACT.md, "Conformance fixtures"). Small, and
+# chosen to exercise every part of the output contract: both audiences, a
+# margin and a worksheet-only question, a resolved and a hidden one, a retired
+# number, section and external references, a partial, a figure, a quote, a
+# decision and a post with calendar dates.
+project:
+  id: conformance
+  name: Conformance Project
+  tagline: The fixture every host checks itself against.
+audiences:
+  public: { name: Anyone signed in, describes: "Public questions any signed-in person may answer." }
+  members: { name: Members, describes: "Members-only questions. A host must never show their text to anyone else." }
+asked_rounds:
+  r1: { label: "First round", new: false, opened: 2026-09-01 }
+  r2: { label: "Second round", new: true, opened: 2026-09-17T17:00:00Z }
+references:
+  spec:
+    url: https://example.org/spec
+    label: the external spec
+groups:
+  - { key: scope, label: Scope }
+  - { key: method, label: Method }

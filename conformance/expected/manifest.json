@@ -1,0 +1,282 @@
+{
+  "project": {
+    "id": "conformance",
+    "name": "Conformance Project",
+    "tagline": "The fixture every host checks itself against."
+  },
+  "audiences": {
+    "public": {
+      "name": "Anyone signed in",
+      "describes": "Public questions any signed-in person may answer."
+    },
+    "members": {
+      "name": "Members",
+      "describes": "Members-only questions. A host must never show their text to anyone else."
+    }
+  },
+  "asked_rounds": {
+    "r1": {
+      "label": "First round",
+      "new": false,
+      "opened": "2026-09-01T00:00:00.000Z"
+    },
+    "r2": {
+      "label": "Second round",
+      "new": true,
+      "opened": "2026-09-17T17:00:00.000Z"
+    }
+  },
+  "docs": [
+    {
+      "slug": "start",
+      "title": "About the conformance project",
+      "nav": 0,
+      "nav_id": "start",
+      "type": "doc",
+      "menu": "project",
+      "partial": false,
+      "date": null,
+      "author": null,
+      "source": "README.md",
+      "headings": [
+        {
+          "level": 1,
+          "id": "about-the-conformance-project",
+          "text": "About the conformance project",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "how",
+          "text": "How it works",
+          "explicit": true
+        }
+      ]
+    },
+    {
+      "slug": "guide",
+      "title": "The guide",
+      "nav": 10,
+      "nav_id": "guide",
+      "type": "doc",
+      "menu": null,
+      "partial": false,
+      "date": null,
+      "author": null,
+      "source": "guide.md",
+      "headings": [
+        {
+          "level": 1,
+          "id": "the-guide",
+          "text": "The guide",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "scope",
+          "text": "Scope",
+          "explicit": true
+        },
+        {
+          "level": 2,
+          "id": "method",
+          "text": "Method",
+          "explicit": true
+        },
+        {
+          "level": 2,
+          "id": "settled",
+          "text": "Settled",
+          "explicit": true
+        }
+      ]
+    },
+    {
+      "slug": "summary",
+      "title": "Summary prose",
+      "nav": 100,
+      "nav_id": "summary",
+      "type": "doc",
+      "menu": null,
+      "partial": true,
+      "date": null,
+      "author": null,
+      "source": "summary.md",
+      "headings": []
+    },
+    {
+      "slug": "activity/2026-09-14-started",
+      "title": "Started",
+      "nav": 1000,
+      "nav_id": "activity/2026-09-14-started",
+      "type": "post",
+      "menu": null,
+      "partial": false,
+      "date": "2026-09-14",
+      "author": "Claude",
+      "source": "activity/2026-09-14-started.md",
+      "headings": [
+        {
+          "level": 2,
+          "id": "started",
+          "text": "Started",
+          "explicit": true
+        }
+      ]
+    },
+    {
+      "slug": "decisions/2026-09-17-monthly",
+      "title": "Publish monthly",
+      "nav": 2000,
+      "nav_id": "decisions/2026-09-17-monthly",
+      "type": "decision",
+      "menu": null,
+      "partial": false,
+      "date": "2026-09-17",
+      "author": null,
+      "source": "decisions/2026-09-17-monthly.md",
+      "headings": [
+        {
+          "level": 2,
+          "id": "monthly",
+          "text": "Publish monthly",
+          "explicit": true
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "conformance:what-scope",
+      "slug": "what-scope",
+      "number": 1,
+      "audience": "public",
+      "group": "scope",
+      "asked": "r1",
+      "margin": true,
+      "resolved": null,
+      "hidden": false,
+      "doc": "guide",
+      "section": "scope",
+      "section_title": "Scope",
+      "see": [
+        {
+          "kind": "section",
+          "doc": "guide",
+          "section": "method",
+          "title": "Method"
+        },
+        {
+          "kind": "external",
+          "name": "spec",
+          "url": "https://example.org/spec",
+          "label": "the external spec"
+        }
+      ],
+      "body": "<p>Is the scope right for a first version?</p>",
+      "why": "everything else depends on it."
+    },
+    {
+      "id": "conformance:cadence",
+      "slug": "cadence",
+      "number": 3,
+      "audience": "public",
+      "group": "scope",
+      "asked": "r1",
+      "margin": true,
+      "resolved": "#settled",
+      "hidden": false,
+      "doc": "guide",
+      "section": "settled",
+      "section_title": "Settled",
+      "see": [],
+      "body": "<p>How often should the project publish?</p>",
+      "why": null
+    },
+    {
+      "id": "conformance:members-only",
+      "slug": "members-only",
+      "number": 4,
+      "audience": "members",
+      "group": "method",
+      "asked": "r2",
+      "margin": true,
+      "resolved": null,
+      "hidden": false,
+      "doc": "guide",
+      "section": "method",
+      "section_title": "Method",
+      "see": [],
+      "body": "<p>MEMBERS-ONLY-SENTINEL: which internal tool do we use for the count?</p>",
+      "why": "this text must never reach a non-member."
+    },
+    {
+      "id": "conformance:worksheet-only",
+      "slug": "worksheet-only",
+      "number": 5,
+      "audience": "public",
+      "group": "method",
+      "asked": "r2",
+      "margin": false,
+      "resolved": null,
+      "hidden": false,
+      "doc": "guide",
+      "section": "method",
+      "section_title": "Method",
+      "see": [
+        {
+          "kind": "section",
+          "doc": "guide",
+          "section": "scope",
+          "title": "Scope"
+        }
+      ],
+      "body": "<p>Should the method be published before the first results?</p>",
+      "why": null
+    },
+    {
+      "id": "conformance:withdrawn",
+      "slug": "withdrawn",
+      "number": 6,
+      "audience": "members",
+      "group": "scope",
+      "asked": "r1",
+      "margin": true,
+      "resolved": null,
+      "hidden": true,
+      "doc": "guide",
+      "section": "settled",
+      "section_title": "Settled",
+      "see": [],
+      "body": "<p>A question that was hidden rather than retired.</p>",
+      "why": null
+    }
+  ],
+  "quotes": [
+    {
+      "doc": "guide",
+      "slug": "what-scope",
+      "excerpt": false,
+      "text": "keep it small"
+    }
+  ],
+  "figures": [
+    {
+      "doc": "summary",
+      "key": "counts.questions",
+      "text": "5"
+    },
+    {
+      "doc": "summary",
+      "key": "counts.open",
+      "text": "2"
+    }
+  ],
+  "counts": {
+    "documents": 5,
+    "questions": 5,
+    "visible": 4,
+    "resolved": 1,
+    "open": 3
+  }
+}

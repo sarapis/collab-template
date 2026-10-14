@@ -1,0 +1,11 @@
+{
+  "generated_from": "build/manifest.json",
+  "generated_at": "2026-10-14",
+  "figures": {
+    "counts.documents": 5,
+    "counts.questions": 2,
+    "counts.visible": 2,
+    "counts.open": 2,
+    "counts.resolved": 0
+  }
+}

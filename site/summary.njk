@@ -1,0 +1,85 @@
+---
+layout: base.njk
+title: Summary
+permalink: /summary/
+---
+<h1>{{ site.project.name }}</h1>
+<p class="lede">{{ site.project.tagline }}</p>
+
+{# ⚠️ A card rather than a sentence at the end of the prose, and above the fold
+   rather than below it. This is the only route to the orientation page that a
+   returning reader sees first — `/` stops going there once they have read it,
+   and the menu item moved to the bottom. A link nobody can find is the same as
+   no link. #}
+<a class="orient" href="/start/">
+  <span class="orient-kicker">New here?</span>
+  <span class="orient-title">Start here</span>
+  <span class="orient-detail">How this site works, what the questions in the
+    margins are for, and how to take part — whether you have a URL or a git
+    clone.</span>
+</a>
+
+<h2 id="what">What this project is</h2>
+{# The prose lives in content/summary.md so it can be edited in markdown like
+   everything else. Only the figures below are computed, because only the
+   figures rot. #}
+{{ "summary" | fragment | safe }}
+
+<h2 id="state">Where it stands</h2>
+<p class="counts">
+  {{ manifest.counts.questions }} questions ·
+  {{ manifest.counts.open }} open ·
+  {{ manifest.counts.resolved }} resolved ·
+  {{ manifest.counts.documents }} documents
+</p>
+<p class="counts">Every figure on this page is computed by the build. None is
+typed, so none can rot.</p>
+
+{% set audiences = manifest.questions | open_by_audience %}
+<div class="cards">
+{% for row in audiences %}
+  <article class="card open">
+    <p class="counts">{{ manifest.audiences[row.audience].name or row.audience }}</p>
+    <!-- ⚠️ "open" here means not yet folded into the prose, which is what the
+         build can see. "Waiting" belongs to notifications and means something
+         narrower -- not answered by you -- so using the word here would have the
+         summary and the badge disagree in public. -->
+    <p><strong>{{ row.count }}</strong> question{{ 's' if row.count != 1 }} still open.
+      {{ manifest.audiences[row.audience].describes }}</p>
+    <p><a href="/questions/?show=answered">See what is answered and not yet folded in →</a></p>
+  </article>
+{% else %}
+  <article class="card"><p>Nothing is open. Every question has been resolved.</p></article>
+{% endfor %}
+</div>
+
+<h2 id="artifacts">Artifacts</h2>
+<p>The documents being worked on, and what each is still waiting for.</p>
+<div class="cards">
+{% for d in manifest.docs | documents %}
+  <article class="card">
+    <p><a href="/{{ d.slug }}/"><strong>{{ d.title }}</strong></a></p>
+    {% set mine = manifest.questions | for_doc(d.slug) %}
+    <p class="counts">
+      {{ d.headings | sections | length }} sections ·
+      {{ mine | length }} question{{ 's' if (mine | length) != 1 }}
+    </p>
+  </article>
+{% endfor %}
+  <article class="card">
+    <p><a href="/design/"><strong>Design system</strong></a></p>
+    <p class="counts">The tokens this site is built from, read from the stylesheet.</p>
+  </article>
+</div>
+
+<h2 id="recent">Recently</h2>
+<div class="cards">
+{% for p in manifest.docs | of_type("post") | head(3) %}
+  <article class="card">
+    <p class="counts">{{ p.date }}{% if p.author %} · {{ p.author }}{% endif %}</p>
+    <p><a href="/{{ p.slug }}/"><strong>{{ p.title }}</strong></a></p>
+  </article>
+{% endfor %}
+</div>
+<p><a href="/activity/">The full activity feed →</a> ·
+   <a href="/decisions/">Decisions and why →</a></p>

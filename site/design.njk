@@ -1,0 +1,24 @@
+---
+layout: base.njk
+title: Design system
+permalink: /design/
+---
+<h1>Design system</h1>
+<p>The real tokens this project is built from, read straight out of
+<code>design/tokens.css</code>. Nothing on this page is a copy — a design system
+page that restates its own values is the second copy that drifts.</p>
+<h2 id="colour">Colour</h2>
+<div class="swatches">
+{% for t in tokens.colours %}
+  <div class="swatch">
+    <div class="chip" style="background: var({{ t.name }})"></div>
+    <div class="label"><code>{{ t.name }}</code><br><span class="q-audience">{{ t.light }} / {{ t.dark or '—' }}</span></div>
+  </div>
+{% endfor %}
+</div>
+<h2 id="type">Type</h2>
+<p style="font-family: var(--font)">Body — <code>--font</code></p>
+<p style="font-family: var(--font-ui)">Interface — <code>--font-ui</code></p>
+<p style="font-family: var(--font-mono)">Mono — <code>--font-mono</code></p>
+<h2 id="other">Everything else</h2>
+<ul class="counts">{% for t in tokens.other %}<li><code>{{ t.name }}</code> — {{ t.light }}</li>{% endfor %}</ul>

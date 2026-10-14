@@ -1,0 +1,28 @@
+{
+  "name": "collab-site",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "compile": "node packages/compile/src/cli.js",
+    "build": "npm run clean && npm run compile && node scripts/build-worker-data.mjs && eleventy",
+    "check": "node packages/compile/src/cli.js --check && npm run build && npm test",
+    "dev": "npm run build && wrangler dev",
+    "test": "node --test packages/*/test/*.test.js test/*.test.js worker/test/*.test.js conformance/*.test.js",
+    "template": "node scripts/template-pin.mjs",
+    "export": "node scripts/export-answers.mjs",
+    "clean": "rm -rf _site build",
+    "new": "node scripts/new-artifact.mjs",
+    "figures": "node scripts/export-figures.mjs"
+  },
+  "devDependencies": {
+    "@11ty/eleventy": "^3.1.6",
+    "wrangler": "^4.133.0"
+  },
+  "description": "A collaboration site: documents with questions in the margin, answered by a roster, served by a Cloudflare Worker. Fork it from sarapis/collab-template; see TEMPLATE.md.",
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^0.10.3"
+  }
+}

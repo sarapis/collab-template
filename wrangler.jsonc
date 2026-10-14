@@ -1,0 +1,65 @@
+{
+  // ⚠️ THIS FILE IS THE INSTANCE'S (TEMPLATE.md). Every id below is a
+  // placeholder: create your own Worker, D1 database and KV namespace, and never
+  // copy another instance's. A fork that inherits its parent's ids reads and
+  // WRITES the other project's live database with nothing looking wrong.
+  "name": "sample-collab",
+  "main": "worker/src/entry.js",
+  "compatibility_date": "2025-07-01",
+
+  // ⚠️ Pin the account. With a single-account token wrangler deploys to whatever
+  // account it can see.
+  "account_id": "PASTE_ACCOUNT_ID",
+
+  // The Worker serves the built site as well as the API: one origin, one auth
+  // check. ⚠️ run_worker_first is REQUIRED on a private instance (the gate
+  // refuses PUBLIC_READ=false without it), and kept on a public one because
+  // `/` is a router rather than a page.
+  "assets": { "directory": "./_site", "binding": "ASSETS", "run_worker_first": true },
+
+  // ⚠️ A Custom Domain creates its own DNS record and REMOVES it if detached.
+  "routes": [{ "pattern": "collab.example.org", "custom_domain": true }],
+
+  // ⚠️ A KV title is unique per account: title it after this instance. The
+  // BINDING stays OAUTH_KV.
+  "kv_namespaces": [
+    { "binding": "OAUTH_KV", "id": "PASTE_KV_NAMESPACE_ID" }
+  ],
+
+  "d1_databases": [
+    { "binding": "DB", "database_name": "sample-collab", "database_id": "PASTE_D1_DATABASE_ID" }
+  ],
+
+  // ⚠️ keep_vars stops a deploy from DELETING variables set in the dashboard.
+  "keep_vars": true,
+
+  "vars": {
+    // ⚠️ false = private: every page, /api/ and /mcp need a sign-in. Keep it in
+    // step with `auth.read` in site.config.yml.
+    "PUBLIC_READ": "false",
+
+    "CHAT_ENABLED": "true",
+    "CHAT_MODEL": "gemini-3.5-flash-lite",
+    "CHAT_RETENTION_DAYS": "90",
+
+    // A public assistant (anonymous readers may ask) needs both limits; a
+    // private instance refuses anonymous callers whatever this says.
+    //   CHAT_PUBLIC              anonymous readers may ask at all
+    //   CHAT_RATE_PER_IP_HOUR    token bucket, per address
+    //   CHAT_DAILY_TURN_CEILING  hard stop for the whole site, per day
+    "CHAT_PUBLIC": "false"
+
+    // Set MAGIC_LINK_FROM to a sending address to turn on emailed sign-in links.
+  },
+
+  // SECRETS, never vars, set with `wrangler secret put`:
+  //   ROOT_ADMIN      the address this site is deployed with; the bootstrap
+  //   SESSION_SECRET  signs the session cookie
+  //   AGENT_TOKENS    {"they@example.org":"sha256:<64 hex>"}
+  //   RESEND_API_KEY  sends the mail
+  //   GEMINI_API_KEY  the assistant
+
+  "triggers": { "crons": ["17 4 * * *"] },
+
+  "observability": { "enabled": true }
+}

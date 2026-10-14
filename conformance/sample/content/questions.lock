@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "numbers": {
+    "what-scope": 1,
+    "cadence": 3,
+    "members-only": 4,
+    "worksheet-only": 5,
+    "withdrawn": 6
+  },
+  "retired": {
+    "gone": 2
+  }
+}

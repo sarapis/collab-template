@@ -1,0 +1,46 @@
+name: check and deploy
+
+# ⚠️ The gate runs BEFORE the deploy and a failure blocks it. A gate that runs
+# after a deploy is a report, not a gate.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # `npm run check` refuses to pass if content/questions.lock is out of
+      # date, so a question number is never minted by a deploy that nobody read.
+      - run: npm run check
+      # A fork's template-owned files are checked offline by npm test; this
+      # checks the pin itself against sarapis/collab-template (TEMPLATE.md).
+      - if: hashFiles('template.pin.json') != ''
+        run: npm run template -- verify
+
+  deploy:
+    needs: check
+    # ⚠️ Never from the template itself: it is a sample with placeholder ids.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository != 'sarapis/collab-template'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Deploy
+        run: npx wrangler deploy
+        env:
+          # ⚠️ wrangler.jsonc pins account_id, so a token for the wrong account
+          # fails the deploy rather than landing the site somewhere unexpected.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

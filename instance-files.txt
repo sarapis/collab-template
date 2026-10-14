@@ -1,0 +1,28 @@
+# The files an INSTANCE owns (TEMPLATE.md, "The boundary").
+#
+# Everything else in this repository belongs to the template. A fork records the
+# template version it is built from in template.pin.json, and
+# test/template-pin.test.js fails if any template-owned file differs from that
+# version by a single byte, or goes missing. To change one, change it in
+# sarapis/collab-template and take the new version (`npm run template -- update`).
+#
+# An instance may also add files of its own ANYWHERE except inside the
+# template's code directories (TEMPLATE_DIRS in scripts/template-pin.mjs): a new
+# file there is a fork of the host, and the test refuses it.
+#
+# One pattern per line: an exact path, or `dir/**` for everything under dir.
+
+README.md
+CLAUDE.md
+CONTINUE.md
+site.config.yml
+wrangler.jsonc
+.mcp.json
+design/tokens.css
+content/**
+instance/**
+docs/**
+.claude/**
+worker/src/site.generated.js
+worker/migrations/**
+template.pin.json

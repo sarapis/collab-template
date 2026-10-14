@@ -1,0 +1,64 @@
+---
+layout: base.njk
+title: People
+permalink: /admin/people/
+---
+<h1>People</h1>
+<p class="lede">Who can sign in, and what they may do.</p>
+
+<div id="admin-people" hidden>
+  <table class="people"><thead>
+    <tr><th>Name</th><th>Email</th><th>Role</th><th>Answers as</th><th></th></tr>
+  </thead><tbody id="people-rows"></tbody></table>
+
+  {# ⚠️ Hidden until there is something to say. An empty warning that lives on
+     the page forever is furniture, and people stop reading furniture. #}
+  <section id="orphan-identities" hidden>
+    <h2 id="orphans">Written by nobody on this list</h2>
+    <p class="lede">Somebody wrote these under a name the roster does not know.</p>
+    <div class="note">
+      <p>Every check of the form <em>is this yours?</em> compares the roster key
+      on the record with the one on the session. When they stop matching, the
+      records still render and the names still look right — what fails, quietly,
+      is the author's ability to edit their own words, and any count of what they
+      have already done.</p>
+      <p>This usually means an identity changed shape and the stored rows were
+      not moved with it. Fix it with a migration, not by editing rows by hand.</p>
+    </div>
+    <ul id="orphan-rows"></ul>
+  </section>
+
+  <h2 id="add">Add someone</h2>
+  <form class="form" id="add-person">
+    <div class="field">
+      <label for="p-name">Name</label>
+      <input id="p-name" name="name" required placeholder="What other people see on their answers">
+    </div>
+    <div class="field">
+      <label for="p-email">Email</label>
+      <input id="p-email" name="email" type="email" required placeholder="they@example.org">
+    </div>
+    <div class="field">
+      <label for="p-role">Role</label>
+      <select id="p-role" name="role">
+        <option value="user">User — reads, answers questions, comments</option>
+        <option value="contributor">Contributor — also reads the conversation log</option>
+        <option value="admin">Admin — also manages people</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="p-audiences">Answers as</label>
+      <input id="p-audiences" name="audiences" placeholder="comma separated, e.g. devin">
+      <p class="hint">Which questions are addressed to them. Leave empty if none are.</p>
+    </div>
+    <button class="btn" type="submit">Add</button>
+  </form>
+  <p class="counts" id="add-note"></p>
+
+  <h2 id="history">What has changed</h2>
+  <p class="counts">Append-only. This is what a pull request used to give for free:
+    a record that somebody was granted or refused access, by whom, and when.</p>
+  <div id="membership-log" class="cards"></div>
+</div>
+
+<p class="muted" id="people-denied" hidden>This page is for administrators.</p>

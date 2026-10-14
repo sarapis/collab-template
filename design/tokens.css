@@ -1,0 +1,128 @@
+/* The Sarapis design system.
+ *
+ * Read from the deployed stylesheets of next.sarapis.org on 2026-09-17 and
+ * transcribed here, names intact, so this file IS the system rather than an
+ * impression of it. When next.sarapis.org changes, re-read it and update this
+ * file; do not adjust a value here to taste.
+ *
+ * ⚠️ Every token defined for light must be defined for BOTH dark selectors. A
+ * token the dark blocks do not redefine keeps its light value while
+ * --foreground flips, which is light on light. The gate enforces this.
+ *
+ * Four tokens at the end are DERIVED rather than transcribed, and say so.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Geist+Mono:wght@400&family=Geist:wght@400;500;600;700&display=swap');
+
+/* ⚠️ The site pins itself to LIGHT via <html data-theme="light">, so the dark
+   palette below is defined and not currently used. It stays because the parity
+   rule stays: the day somebody removes the pin, every token must already have a
+   dark value, and a palette half-written is how four ops pages ended up with an
+   unreadable callout for a month. */
+:root {
+  color-scheme: light;
+
+  /* Sarapis, light */
+  --background: #fdf8f3;
+  --foreground: #2c1a14;
+  --card: #fffcf8;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --primary: #782a39;
+  --primary-foreground: #fbf4e6;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #171717;
+  --muted: #f5f5f5;
+  --muted-foreground: #604e46;
+  --accent: #f2e6e0;
+  --accent-foreground: #782a39;
+  --gold: #ffbb48;
+  --colophon: #f1e7dd;
+  --destructive: #e40014;
+  --border: #e8dbd3;
+  --input: #e8dbd3;
+  --ring: #9a4250;
+  --success: #76c7cc;
+  --warning: #ffd294;
+  --error: #ff847d;
+  --sidebar: #fafafa;
+  --sidebar-border: #e5e5e5;
+
+  /* Derived here, not taken from next.sarapis.org: --success and --warning are
+     surface tints in that system and invert between modes, so neither works as
+     a line or as text. These two carry the contrast a rule and a label need. */
+  --success-line: #2f7d7f;
+  --warning-line: #9a6a12;
+
+  /* A shadow is a colour too, and a black one is invisible on a dark
+     background — which is exactly the mistake the parity rule exists to catch. */
+  --shadow-card: 0 1px 2px rgb(60 40 30 / .05), 0 8px 24px rgb(60 40 30 / .07);
+
+  /* Structural */
+  --radius: 0.625rem;
+  --measure: 36rem;
+  --font-sans: Geist, ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-serif: Fraunces, ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:root:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --background: #150d0b;
+    --foreground: #f4ede6;
+    --card: #1e1613;
+    --card-foreground: #fafafa;
+    --popover: #0a0a0a;
+    --primary: #c25c6e;
+    --primary-foreground: #2c1418;
+    --secondary: #262626;
+    --secondary-foreground: #fafafa;
+    --muted: #262626;
+    --muted-foreground: #a1a1a1;
+    --accent: #3f271e;
+    --accent-foreground: #f1c1b1;
+    --gold: #ffbb48;
+    --colophon: #1e1613;
+    --destructive: #82181a;
+    --border: #2f2723;
+    --input: #2f2723;
+    --ring: #c25c6e;
+    --success: #003033;
+    --warning: #543200;
+    --error: #843c38;
+    --sidebar: #171717;
+    --sidebar-border: #262626;
+    --success-line: #76c7cc;
+    --warning-line: #ffbb48;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / .4), 0 8px 24px rgb(0 0 0 / .45);
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #150d0b;
+  --foreground: #f4ede6;
+  --card: #1e1613;
+  --card-foreground: #fafafa;
+  --popover: #0a0a0a;
+  --primary: #c25c6e;
+  --primary-foreground: #2c1418;
+  --secondary: #262626;
+  --secondary-foreground: #fafafa;
+  --muted: #262626;
+  --muted-foreground: #a1a1a1;
+  --accent: #3f271e;
+  --accent-foreground: #f1c1b1;
+  --gold: #ffbb48;
+  --colophon: #1e1613;
+  --destructive: #82181a;
+  --border: #2f2723;
+  --input: #2f2723;
+  --ring: #c25c6e;
+  --success: #003033;
+  --warning: #543200;
+  --error: #843c38;
+  --sidebar: #171717;
+  --sidebar-border: #262626;
+  --success-line: #76c7cc;
+  --warning-line: #ffbb48;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / .4), 0 8px 24px rgb(0 0 0 / .45);
+}
