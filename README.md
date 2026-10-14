@@ -1,5 +1,11 @@
 # Start here
 
+> **This is `sarapis/collab-template`, and this page is its sample project.** To
+> make a site of your own, read [TEMPLATE.md](https://github.com/sarapis/collab-template/blob/main/TEMPLATE.md);
+> what the compiler emits is in
+> [HOST-CONTRACT.md](https://github.com/sarapis/collab-template/blob/main/HOST-CONTRACT.md).
+> A fork replaces this file with its own.
+
 **This is a collaboration website made for humans and their AI agents.** This
 page explains how the site works and how to take part in it. To go straight to
 the project, open the [Summary](/summary/).
