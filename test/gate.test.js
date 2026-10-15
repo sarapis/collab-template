@@ -467,6 +467,35 @@ test('the passthrough check can see two entries at one address', () => {
   assert.equal(d.passthroughCollisions(two, SERVED_ADDRESSES).length, 1);
 });
 
+// The floating Ask button is fixed, so only the stylesheet can stop the page
+// ending underneath it. WIDGET_CSS, not CSS: the dock ships with the widget,
+// and the two halves of the arithmetic must be in the file that ships with it.
+const WIDGET_CSS = read('widget/collab.css');
+
+test('the page keeps room below its content for the floating dock', () => {
+  assert.deepEqual(d.chatDockRoom(WIDGET_CSS), []);
+});
+
+test('the dock check can see room trimmed below what the button occupies', () => {
+  const tight = WIDGET_CSS.replace('padding-bottom: 4.8rem', 'padding-bottom: 2rem');
+  assert.equal(d.chatDockRoom(tight).length, 1);
+});
+
+test('the dock check can see a button restyled taller than its room', () => {
+  const taller = WIDGET_CSS.replace('min-height: 2.6rem', 'min-height: 4.5rem');
+  assert.equal(d.chatDockRoom(taller).length, 1);
+});
+
+test('the dock check can see a button that no longer states its height', () => {
+  const vague = WIDGET_CSS.replace('min-height: 2.6rem;', '');
+  assert.equal(d.chatDockRoom(vague).length, 1);
+});
+
+test('the dock check can see the reservation removed', () => {
+  const gone = WIDGET_CSS.replace(/body:has\(\.chat-open\)[^}]*\}/, '');
+  assert.equal(d.chatDockRoom(gone).length, 1);
+});
+
 test('the passthrough check leaves an address of its own alone', () => {
   const ok = [{ from: 'instance/artifact.html', to: 'artifact.html' }, { from: 'instance/deck.html', to: 'deck/index.html' }];
   assert.deepEqual(d.passthroughCollisions(ok, SERVED_ADDRESSES), []);

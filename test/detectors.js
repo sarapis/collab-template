@@ -583,3 +583,57 @@ export function passthroughCollisions(passthrough, served) {
   }
   return out;
 }
+
+/**
+ * The page must keep enough room below its content for the floating dock.
+ *
+ * ⚠️ The Ask button is `position: fixed`, so it is out of the flow and the page
+ * can simply END underneath it. On a phone it did: at the foot of a document
+ * the pill sat on the last contents link, and because a fixed element also
+ * takes the taps, that link could not be followed at all. Nothing looked
+ * wrong — the page was complete, the button was where it belonged, and the two
+ * were in the same place.
+ *
+ * What makes this worth a check rather than a careful commit is that the two
+ * halves live in different rules and neither reads the other: restyle the pill
+ * taller, or trim the page's padding to tighten a layout, and the overlap is
+ * back with every test still green. So the arithmetic is checked, not the
+ * spelling — the rem values are read out of the rules themselves, which is
+ * also why the button states its own height rather than leaving it to the
+ * padding and the font.
+ */
+export function chatDockRoom(css) {
+  // The rule's own braces. Selectors here contain no braces, so the first `}`
+  // after the selector ends it.
+  const rule = (selector) => {
+    const at = css.indexOf(selector + ' {');
+    if (at < 0) return null;
+    const open = at + selector.length + 2;
+    const close = css.indexOf('}', open);
+    return close < 0 ? null : css.slice(open, close);
+  };
+  const rem = (block, prop) => {
+    const m = block.match(new RegExp('(?:^|[;{\\s])' + prop + ':\\s*([\\d.]+)rem'));
+    return m ? Number(m[1]) : null;
+  };
+
+  const button = rule('.chat-open');
+  if (button == null) return ['there is no .chat-open rule, so the dock cannot be measured'];
+  const reserve = rule('body:has(.chat-open)');
+  if (reserve == null) return ['nothing reserves room for the dock on the page (body:has(.chat-open))'];
+
+  const height = rem(button, 'min-height');
+  const gap = rem(button, 'bottom');
+  const room = rem(reserve, 'padding-bottom');
+  const out = [];
+  if (height == null) out.push('.chat-open states no min-height in rem, so its own height cannot be checked');
+  if (gap == null) out.push('.chat-open states no bottom offset in rem, so its distance from the edge cannot be checked');
+  if (room == null) out.push('body:has(.chat-open) reserves no padding-bottom in rem');
+  if (out.length) return out;
+
+  if (room < height + gap) {
+    out.push(`the page reserves ${room}rem below its content and the dock occupies ${height + gap}rem `
+      + `(min-height ${height}rem + bottom ${gap}rem): the page can end underneath it`);
+  }
+  return out;
+}
