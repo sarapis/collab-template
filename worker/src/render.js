@@ -41,18 +41,41 @@ export function listedDocs(version, type = 'doc') {
 }
 
 // The listed documents in named groups (`project.doc_groups`: a list of
-// {prefix, label}, in order). A document goes in the first group whose prefix
-// its slug starts with; the rest form a last, unnamed group. Unset, there is
-// one group, as before.
+// {label, docs} or {label, prefix}, in order). A group with `docs` holds exactly
+// those slugs, in that order; one with `prefix` holds the documents whose slug
+// starts with it. A document goes in the first group that claims it; the rest
+// form a last, unnamed group. Unset, there is one group, as before.
 export function docGroups(version, docs) {
   const declared = version.manifest.project?.doc_groups || [];
-  const groups = declared.map((g) => ({ label: g.label || g.prefix, docs: [] }));
+  const claims = (g, d) => (Array.isArray(g.docs) ? g.docs.includes(d.slug) : !!g.prefix && d.slug.startsWith(g.prefix));
+  const groups = declared.map((g) => ({ label: g.label || g.prefix, docs: [], order: Array.isArray(g.docs) ? g.docs : null }));
   const rest = [];
   for (const d of docs) {
-    const i = declared.findIndex((g) => g.prefix && d.slug.startsWith(g.prefix));
+    const i = declared.findIndex((g) => claims(g, d));
     (i >= 0 ? groups[i].docs : rest).push(d);
   }
+  for (const g of groups) if (g.order) g.docs.sort((a, b) => g.order.indexOf(a.slug) - g.order.indexOf(b.slug));
   return [...groups.filter((g) => g.docs.length), ...(rest.length ? [{ label: null, docs: rest }] : [])];
+}
+
+// ⚠️ `project.header_menus: true`: the header is the ONE place documents are
+// listed. Home, the `project.pills` documents as pills, then a dropdown per
+// document group; anything in no group is in "More", so no document becomes
+// unreachable. The rail then drops its documents list. Dropdowns are <details>:
+// they open and close with no script (collab.js only closes the others and
+// closes on Escape or a click elsewhere).
+export function headerMenus(version, docs, path) {
+  const standalone = Array.isArray(version.manifest.project?.pills) ? pillDocs(version, docs) : [];
+  const taken = new Set(standalone.map((d) => d.slug));
+  const groups = docGroups(version, docs.filter((d) => !taken.has(d.slug)));
+  const link = (d) => `<a class="nav-item" href="/${esc(d.slug)}/"${cur(path === `/${d.slug}/`)}>${esc(d.title)}</a>`;
+  return [
+    ...standalone.map((d) => `<a class="pill" href="/${esc(d.slug)}/"${cur(path === `/${d.slug}/`)}>${esc(d.title)}</a>`),
+    ...groups.map((g) => {
+      const here = g.docs.some((d) => path === `/${d.slug}/`);
+      return `<details class="nav-group"><summary class="pill${here ? ' is-current' : ''}">${esc(g.label || 'More')}</summary><div class="nav-menu">${g.docs.map(link).join('')}</div></details>`;
+    }),
+  ].join('');
 }
 
 // The documents the header shows as pills: `project.pills` (slugs, in order)
@@ -142,9 +165,11 @@ export function layout(ctx, page) {
   const data = listedDocs(version, 'data');
   const artifacts = ctx.navArtifacts || [];
 
+  const menus = project.header_menus === true;
   const pills = [
     `<a class="pill" href="/"${cur(path === '/')}>Home</a>`,
-    ...pillDocs(version, docs).map((d) => `<a class="pill" href="/${esc(d.slug)}/"${cur(path === `/${d.slug}/`)}>${esc(d.title)}</a>`),
+    menus ? headerMenus(version, [...docs, ...data], path)
+      : pillDocs(version, docs).map((d) => `<a class="pill" href="/${esc(d.slug)}/"${cur(path === `/${d.slug}/`)}>${esc(d.title)}</a>`).join(''),
     ...artifacts.map((a) => `<a class="pill" href="${esc(a.href)}"${cur(path === a.href)}>${esc(a.label)}</a>`),
   ].join('');
 
@@ -219,7 +244,7 @@ ${page.noindex ? '<meta name="robots" content="noindex">\n' : ''}<link rel="styl
   <main>${banner(page.status)}${body}</main>
   <button class="rail-switch" type="button" id="rail-switch" aria-controls="rail" aria-expanded="true">Hide contents</button>
   <aside class="rail" id="rail">
-    <nav class="rail-section" aria-label="Documents">${docGroups(version, docs).map((g) => railDocs(g.docs, esc(g.label || (docGroups(version, docs).length > 1 ? 'Other documents' : 'Documents')))).join('')}${railDocs(data, 'Data')}</nav>
+    ${menus ? '' : `<nav class="rail-section" aria-label="Documents">${docGroups(version, docs).map((g) => railDocs(g.docs, esc(g.label || (docGroups(version, docs).length > 1 ? 'Other documents' : 'Documents')))).join('')}${railDocs(data, 'Data')}</nav>`}
     <section class="rail-section">
       <p class="menu-head">Where things stand</p>
       <p class="counts">${standing(version)}</p>

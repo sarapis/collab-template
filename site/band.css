@@ -128,3 +128,24 @@ main blockquote > :last-child { margin-bottom: 0; }
 .activity-title { margin: .3rem 0 .6rem; font-size: 1.3rem; }
 .activity-title a { color: var(--foreground); text-decoration: none; }
 .activity-title a:hover { color: var(--primary); text-decoration: underline; }
+
+/* Header dropdown menus (`project.header_menus: true`). <details>, so they open
+   with no script; on a narrow screen the menu opens in place under its pill. */
+.nav-group { position: relative; display: inline-block; }
+.nav-group > summary { list-style: none; cursor: pointer; }
+.nav-group > summary::-webkit-details-marker { display: none; }
+.nav-group > summary::after { content: " \25be"; font-size: .75em; }
+.nav-group[open] > summary::after { content: " \25b4"; }
+.nav-group > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.pill.is-current { background: var(--accent); color: var(--accent-foreground); border-color: var(--ring); font-weight: 600; }
+.nav-menu { position: absolute; z-index: 30; top: calc(100% + .35rem); left: 0; min-width: 15rem; max-width: 22rem;
+  display: flex; flex-direction: column; gap: .1rem; padding: .35rem; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card); }
+.nav-item { display: block; padding: .4rem .6rem; border-radius: calc(var(--radius) * .7); text-decoration: none;
+  color: var(--foreground); font-size: .88rem; line-height: 1.35; }
+.nav-item:hover { background: var(--accent); color: var(--accent-foreground); }
+.nav-item[aria-current="page"] { background: var(--accent); color: var(--accent-foreground); font-weight: 600; }
+@media (max-width: 47.99rem) {
+  .nav-group[open] { flex-basis: 100%; }
+  .nav-menu { position: static; margin-top: .35rem; box-shadow: none; max-width: none; }
+}

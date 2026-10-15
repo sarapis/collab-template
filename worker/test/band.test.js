@@ -312,3 +312,59 @@ test('project.doc_groups groups the documents in the rail and on Home', async ()
   assert.match(none, /<p class="menu-head">Documents<\/p>/, 'an empty group is not drawn, and a lone remainder keeps the plain heading');
   assert.doesNotMatch(none, /Runbooks/);
 });
+
+// --- header menus (project.header_menus: true) --------------------------------
+
+function menusVersion() {
+  const v = sampleVersion();
+  // A second and third document, so groups and "More" have something to hold.
+  for (const [slug, title] of [['runbooks/one', 'Runbook one'], ['runbooks/two', 'Runbook two'], ['notes', 'Notes']]) {
+    v.manifest.docs.push({ slug, title, nav: 50, nav_id: slug, type: 'doc', menu: null, partial: false, date: null, author: null, source: `${slug}.md`, headings: [] });
+    v.fragments[slug] = `<h1 id="t">${title}</h1>`;
+  }
+  Object.assign(v.manifest.project, { header_menus: true, pills: ['plan'], doc_groups: [{ label: 'Runbooks', docs: ['runbooks/two', 'runbooks/one'] }] });
+  return v;
+}
+const navOf = (b) => b.match(/<nav class="pills"[\s\S]*?<\/nav>/)[0];
+
+test('header menus: pills, then a dropdown per group, then More; the rail lists no documents', async () => {
+  const { body } = await html(await bandEnv({ version: menusVersion() }), '/', ADMIN);
+  const nav = navOf(body);
+  assert.match(nav, /<a class="pill" href="\/plan\/">The plan<\/a>/);
+  const runbooks = nav.match(/<details class="nav-group"><summary class="pill">Runbooks<\/summary><div class="nav-menu">([\s\S]*?)<\/div><\/details>/);
+  assert.ok(runbooks, 'a Runbooks dropdown');
+  assert.deepEqual([...runbooks[1].matchAll(/href="([^"]+)"/g)].map((m) => m[1]), ['/runbooks/two/', '/runbooks/one/'], 'in the order the group names them');
+  assert.match(nav, /<summary class="pill">More<\/summary><div class="nav-menu"><a class="nav-item" href="\/notes\/">Notes<\/a>/);
+  assert.doesNotMatch(body, /aria-label="Documents"/, 'the rail does not list them again');
+});
+
+test('header menus: every listed document is in the header exactly once', async () => {
+  const v = menusVersion();
+  const { body } = await html(await bandEnv({ version: v }), '/', ADMIN);
+  const hrefs = [...navOf(body).matchAll(/href="\/([^"]+)\/"/g)].map((m) => m[1]);
+  for (const d of v.manifest.docs.filter((x) => x.type === 'doc' && !x.partial && !x.menu)) {
+    assert.equal(hrefs.filter((h) => h === d.slug).length, 1, `${d.slug} appears once`);
+  }
+});
+
+test('header menus: the page you are on is marked, in its menu and on its group', async () => {
+  const { body } = await html(await bandEnv({ version: menusVersion() }), '/runbooks/one/', ADMIN);
+  const nav = navOf(body);
+  assert.equal((nav.match(/aria-current="page"/g) || []).length, 1);
+  assert.match(nav, /<summary class="pill is-current">Runbooks<\/summary>/);
+  assert.match(nav, /<a class="nav-item" href="\/runbooks\/one\/" aria-current="page">/);
+});
+
+test('header menus: a members-only document is in no menu for a stranger', async () => {
+  const v = menusVersion();
+  v.statuses = { 'runbooks/one': 'members' };
+  const body = await (await fetch(await bandEnv({ version: v, publicRead: true }), '/', null)).text();
+  assert.doesNotMatch(navOf(body), /runbooks\/one/);
+  assert.match(navOf(body), /runbooks\/two/);
+});
+
+test('header menus are off unless asked for: the rail keeps its documents list', async () => {
+  const { body } = await html(await bandEnv(), '/', ADMIN);
+  assert.doesNotMatch(body, /nav-group/);
+  assert.match(body, /aria-label="Documents"/);
+});

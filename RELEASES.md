@@ -3,6 +3,25 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.5.0 — The header lists the documents, in dropdown menus
+
+**`worker/schema.sql` is unchanged.** Band layout only; off unless set.
+
+- `project.header_menus: true`: the header is the one place documents are
+  listed. Home, the `project.pills` documents as pills, then a dropdown per
+  document group; any listed document in no group goes in "More", so none
+  becomes unreachable. The rail drops its documents list and keeps "where things
+  stand", contents and comments. The menu holding the page you are on is marked.
+  Dropdowns are `<details>`: they work with no script; the widget only keeps one
+  open and closes them on Escape or a click elsewhere. On a phone a menu opens in
+  place, full width.
+- `project.doc_groups` entries may now name their documents exactly,
+  `{label, docs: [slug, ...]}`, in the order to show them, as well as by
+  `{label, prefix}`.
+
+The variant build turns header menus on, so the whole gate checks pages that
+carry them. Tests: 406 → 411.
+
 ## v1.4.0 — Choose the header's pills; group the documents
 
 **`worker/schema.sql` is unchanged.** Band layout only; both settings are
