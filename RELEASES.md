@@ -3,6 +3,23 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.3.0 — The export can be pulled by its target
+
+**`worker/schema.sql` is unchanged.**
+
+`content.export.mode` (`push`, the default and v1.1.0's behaviour, or `pull`).
+In pull mode the target repository runs the nightly export itself through the
+template's reusable workflow (`.github/workflows/content-export-pull.yml`),
+with its own `GITHUB_TOKEN`: no deploy key, and no credential in any other
+repository that can write to the target. The instance's own export workflow
+does nothing. The site refuses to be exported into any repository but the one
+its settings name. TEMPLATE.md has the target's workflow file.
+
+Use it when the target's base branch cannot be protected (a private repository
+on GitHub's free plan) or when a push to it deploys something.
+
+Also: an unreachable site is reported in a sentence, not a stack trace.
+
 ## v1.2.1 — A fix: signed-in band pages threw in the Workers runtime
 
 **`worker/schema.sql` is unchanged. Take this if you run `site.layout: band`.**

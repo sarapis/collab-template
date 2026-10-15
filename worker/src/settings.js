@@ -10,8 +10,11 @@
 //                     footer, rendered by the Worker per viewer)
 //   content.source    git (content/ in the repository) | rows (D1, edited on the
 //                     site; needs layout: band)
-//   content.export    where the nightly Action writes the rows: repo, path,
-//                     branch (the target's base), push_branch
+//   content.export    where the nightly export writes the rows: repo, path,
+//                     branch (the target's base), push_branch, and mode:
+//                     push (v1.1.0: this repository's Action pushes the target
+//                     with a deploy key) | pull (v1.3.0: the TARGET runs the
+//                     export with its own token, and no write key exists)
 //
 // Project-level settings the compiler passes through in `project` are read
 // from the manifest, not here: `project.tools` (open | closed),
@@ -30,6 +33,7 @@ export function settingsFrom(config = {}) {
         path: String(ex.path || `collab/${id}`).replace(/^\/+|\/+$/g, ''),
         branch: String(ex.branch || 'main'),
         push_branch: String(ex.push_branch || `collab-export/${id}`),
+        mode: ex.mode === 'pull' ? 'pull' : 'push',
       } : null,
     },
   };
@@ -44,6 +48,7 @@ export function settingsProblems(config = {}) {
   if (config.content?.source && !['git', 'rows'].includes(config.content.source)) out.push(`content.source is "${config.content.source}"; it is git or rows`);
   if (s.content.source === 'rows' && s.layout !== 'band') out.push('content.source: rows needs site.layout: band (the Worker renders the rows; Eleventy never sees them)');
   if (config.content?.export && !config.content.export.repo) out.push('content.export names no repo');
+  if (config.content?.export?.mode && !['push', 'pull'].includes(config.content.export.mode)) out.push(`content.export.mode is "${config.content.export.mode}"; it is push or pull`);
   if (s.content.export && !/^[\w.-]+\/[\w.-]+$/.test(s.content.export.repo)) out.push(`content.export.repo "${s.content.export.repo}" is not owner/name`);
   if (s.content.export && s.content.source !== 'rows') out.push('content.export is set but content.source is not rows: there is nothing to export');
   const tools = config.project?.tools;
