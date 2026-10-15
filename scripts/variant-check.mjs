@@ -28,6 +28,9 @@ try {
   text = text.replace(/^site:\n/m, 'site:\n  layout: band\n')
     + '\ncontent:\n  source: rows\n  export:\n    repo: example/target\n    path: docs/collab\n';
   fs.writeFileSync(cfg, text);
+  // The band layout's own Get involved page shows this partial: the variant
+  // carries one, so the page and the partial are gated together.
+  fs.writeFileSync(path.join(dir, 'content/get-involved.md'), '---\ntitle: Get involved\npartial: true\n---\n\nThe project\'s own words about taking part.\n');
   const run = (cmd, args) => execFileSync(cmd, args, { cwd: dir, stdio: 'inherit' });
   run('npm', ['run', 'build']);
   run('npm', ['test']);

@@ -452,7 +452,9 @@ test('the unstyled-class check still ignores nothing else', () => {
 });
 
 test('no partial is published as its own page', () => {
-  const templates = ['/summary/index.html'];
+  // The band layout's Get involved page is the host's own page that SHOWS the
+  // `get-involved` partial (Databook decision 30), not the partial published.
+  const templates = ['/summary/index.html', ...(BAND ? ['/get-involved/index.html'] : [])];
   assert.deepEqual(d.partialsPublished(P, MANIFEST, templates), []);
   assert.ok(MANIFEST.docs.some((x) => x.partial), 'the content should exercise at least one partial');
 });
