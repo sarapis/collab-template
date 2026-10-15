@@ -44,7 +44,10 @@ export async function servedPages(site = '_site') {
   for (const u of urls) {
     const r = await worker.fetch(new Request('https://gate.test' + u, { headers: { cookie: 'collab_session=gate@example.org' } }), env);
     if (r.status !== 200) throw new Error(`the band site answers ${u} with ${r.status}`);
-    out.push({ path: u === '/' ? '/index.html' : `${u}index.html`, html: await r.text() });
+    // The path the classic gate would give the file: a directory's page is
+    // /x/index.html, a file served as itself (a passthrough artifact,
+    // site.passthrough) keeps its own name so the gate's exemptions match it.
+    out.push({ path: u.endsWith('/') ? `${u}index.html` : u, html: await r.text() });
   }
   return out;
 }

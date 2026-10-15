@@ -52,3 +52,9 @@ test('the export target is a setting with defaults', () => {
   assert.equal(settingsFrom({ site: { layout: 'band' }, content: { source: 'rows', export: { repo: 'o/r', mode: 'pull' } } }).content.export.mode, 'pull');
   assert.match(settingsProblems({ site: { layout: 'band' }, content: { source: 'rows', export: { repo: 'o/r', mode: 'both' } } }).join(), /push or pull/);
 });
+
+test('pills and document groups are checked for shape', () => {
+  assert.match(settingsProblems({ project: { pills: 'plan' } }).join(), /list of document slugs/);
+  assert.match(settingsProblems({ project: { doc_groups: [{ label: 'x' }] } }).join(), /\{prefix, label\}/);
+  assert.deepEqual(settingsProblems({ project: { pills: ['a'], doc_groups: [{ prefix: 'runbooks/', label: 'Runbooks' }] } }), []);
+});
