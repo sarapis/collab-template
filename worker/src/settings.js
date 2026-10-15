@@ -20,7 +20,9 @@
 // from the manifest, not here: `project.tools` (open | closed),
 // `project.groups` ([{key, label}]), `project.site_decisions` ([slug]),
 // `project.pills` ([slug]: the header's pills; default every listed document)
-// and `project.doc_groups` ([{prefix, label}]: the documents list's groups).
+// `project.doc_groups` ([{label, docs}|{label, prefix}]: the documents list's
+// groups) and `project.header_menus` (true: the header lists the documents, as
+// dropdowns per group, and the rail does not).
 export function settingsFrom(config = {}) {
   const layout = config.site?.layout === 'band' ? 'band' : 'classic';
   const source = config.content?.source === 'rows' ? 'rows' : 'git';
@@ -58,7 +60,9 @@ export function settingsProblems(config = {}) {
   const pills = config.project?.pills;
   if (pills != null && (!Array.isArray(pills) || pills.some((x) => typeof x !== 'string'))) out.push('project.pills is a list of document slugs, in order');
   const dg = config.project?.doc_groups;
-  if (dg != null && (!Array.isArray(dg) || dg.some((g) => !g?.prefix))) out.push('project.doc_groups is a list of {prefix, label}, in order');
+  if (dg != null && (!Array.isArray(dg) || dg.some((g) => !(g?.prefix || (Array.isArray(g?.docs) && g.docs.length))))) out.push('project.doc_groups is a list of {label, docs: [slugs]} or {label, prefix}, in order');
+  const hm = config.project?.header_menus;
+  if (hm != null && typeof hm !== 'boolean') out.push('project.header_menus is true or false');
   const groups = config.project?.groups;
   if (groups != null && (!Array.isArray(groups) || groups.some((g) => !g?.key))) out.push('project.groups is a list of {key, label}, in order (a map would lose its order)');
   return out;

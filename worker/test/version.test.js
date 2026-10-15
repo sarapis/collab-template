@@ -55,6 +55,8 @@ test('the export target is a setting with defaults', () => {
 
 test('pills and document groups are checked for shape', () => {
   assert.match(settingsProblems({ project: { pills: 'plan' } }).join(), /list of document slugs/);
-  assert.match(settingsProblems({ project: { doc_groups: [{ label: 'x' }] } }).join(), /\{prefix, label\}/);
+  assert.match(settingsProblems({ project: { doc_groups: [{ label: 'x' }] } }).join(), /\{label, docs: \[slugs\]\} or \{label, prefix\}/);
+  assert.deepEqual(settingsProblems({ project: { doc_groups: [{ label: 'Runbooks', docs: ['a', 'b'] }], header_menus: true } }), []);
+  assert.match(settingsProblems({ project: { header_menus: 'yes' } }).join(), /true or false/);
   assert.deepEqual(settingsProblems({ project: { pills: ['a'], doc_groups: [{ prefix: 'runbooks/', label: 'Runbooks' }] } }), []);
 });

@@ -25,6 +25,10 @@ try {
   const cfg = path.join(dir, 'site.config.yml');
   let text = fs.readFileSync(cfg, 'utf8');
   if (!/^site:\n/m.test(text)) throw new Error('site.config.yml has no `site:` block to set the layout in');
+  // The header's dropdown menus (project.header_menus), so the gate checks pages
+  // that carry them: one standalone pill-less group holding the plan.
+  if (!/^project:\n/m.test(text)) throw new Error('site.config.yml has no `project:` block');
+  text = text.replace(/^project:\n/m, 'project:\n  header_menus: true\n  pills: []\n  doc_groups:\n    - { label: Plans, docs: [plan] }\n');
   text = text.replace(/^site:\n/m, 'site:\n  layout: band\n')
     + '\ncontent:\n  source: rows\n  export:\n    repo: example/target\n    path: docs/collab\n';
   // A self-contained page served as-is (site.passthrough), with classes this

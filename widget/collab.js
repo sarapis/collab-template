@@ -887,7 +887,25 @@
     });
   }
 
-  function boot() { wireRailSwitch(); wireRail(); wireChat(); wireSeeLinks(); wireFilters(); wireAddPerson(); start(); }
+  // Header dropdowns (band layout, project.header_menus). They work with no
+  // script as <details>; this only keeps one open at a time and closes them on
+  // Escape or a click anywhere else.
+  function wireNavMenus() {
+    var groups = document.querySelectorAll('details.nav-group');
+    if (!groups.length) return;
+    function closeAll(except) {
+      for (var i = 0; i < groups.length; i++) if (groups[i] !== except) groups[i].open = false;
+    }
+    for (var i = 0; i < groups.length; i++) {
+      groups[i].addEventListener('toggle', function (e) { if (e.target.open) closeAll(e.target); });
+    }
+    document.addEventListener('click', function (e) {
+      if (!e.target || !e.target.closest || !e.target.closest('details.nav-group')) closeAll(null);
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAll(null); });
+  }
+
+  function boot() { wireRailSwitch(); wireRail(); wireNavMenus(); wireChat(); wireSeeLinks(); wireFilters(); wireAddPerson(); start(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
