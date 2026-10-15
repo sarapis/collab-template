@@ -16,6 +16,11 @@ optional and default to what v1.3.1 did.
   Home group the documents under those labels by slug prefix (`runbooks/`,
   `briefs/`, ...); the rest come last, under "Other documents".
 
+Also a gate fix: in the band layout the gate named a self-contained page served
+as-is (`site.passthrough`, e.g. `design/x.html`) `design/x.htmlindex.html`, so the
+gate's exemption for such pages never matched and their own classes failed "every
+class used is styled". The variant build now carries one (red before the fix).
+
 Tests: 402 → 406.
 
 ## v1.3.1 — Band layout fixes from the first real site
