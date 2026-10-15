@@ -1,4 +1,8 @@
-<!doctype html>
+{% if site.site and site.site.layout == 'band' %}<!--collab:band {{ { title: title, doc: (doc.slug if doc else '') } | dump | safe }}-->
+{#- ⚠️ site.layout: band. The Worker wraps this page in the band layout for the
+    viewer (worker/src/render.js), so the header, Tools, rail and footer are
+    one implementation shared with the pages it renders itself. -#}
+{{ content | safe }}{% else %}<!doctype html>
 <html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
@@ -109,3 +113,4 @@
 <script src="/collab.js" defer></script>
 </body>
 </html>
+{% endif -%}

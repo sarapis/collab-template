@@ -19,10 +19,21 @@
 // So a public instance builds a real index FROM the manifest, which is also the
 // only version that cannot rot: the hand-written one it replaced advertised a
 // corpus a third the size of the real one.
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import yaml from 'js-yaml';
+import { settingsFrom, settingsProblems } from '../worker/src/settings.js';
+import { digest, sourcesOf } from '../conformance/digest.mjs';
 
-const config = yaml.load(fs.readFileSync('site.config.yml', 'utf8')) || {};
+const configText = fs.readFileSync('site.config.yml', 'utf8');
+const config = yaml.load(configText) || {};
+const problems = settingsProblems(config);
+if (problems.length) {
+  for (const p of problems) console.error(`site.config.yml: ${p}`);
+  process.exit(1);
+}
+const settings = settingsFrom(config);
 const pub = config.public || {};
 const isPublic = config.auth?.read === 'public';
 
@@ -124,13 +135,53 @@ const project = {
   tagline: config.project?.tagline || null,
 };
 
+// ⚠️ Only what the Worker needs and nothing it must not publish: the host
+// settings (worker/src/settings.js), the extra page links, the assistant's
+// switch, and the named public fields. In rows mode, the config text too: the
+// Worker compiles the rows itself, and the compiler reads site.config.yml.
+const host = {
+  settings,
+  nav_artifacts: config.site?.nav?.artifacts || [],
+  chat: { enabled: !!config.chat?.enabled, retention_days: config.chat?.retention_days ?? 90 },
+  public: { repo: pub.repo || null, contact: pub.contact || null, llms_txt: pub.llms_txt !== false },
+};
+
 const out = `// GENERATED from site.config.yml by scripts/build-worker-data.mjs. Do not edit.
 // Change site.config.yml and run \`npm run build\`. The gate compares the two.
 export const PUBLIC_NOTICE = ${JSON.stringify(notice)};
 
 export const PROJECT = ${JSON.stringify(project, null, 2)};
+
+export const HOST = ${JSON.stringify(host, null, 2)};
+
+export const CONFIG_TEXT = ${settings.content.source === 'rows' ? JSON.stringify(configText) : 'null'};
 `;
 
 fs.mkdirSync('worker/src', { recursive: true });
 fs.writeFileSync('worker/src/site.generated.js', out);
 console.log(`worker data: ${notice ? `${isPublic ? 'public index' : 'private notice'} on` : 'notice off'}`);
+
+// The band layout renders from a VERSION (worker/src/version.js). In git mode the
+// version is this build: the compiler's output, its sources and its digest
+// (HOST-CONTRACT.md "Digest"), copied to /_build/version.json, which the Worker
+// reads and never serves.
+if (settings.layout === 'band') {
+  if (!manifest) { console.error('band layout: build/manifest.json is missing; compile first'); process.exit(1); }
+  const fragments = Object.fromEntries(manifest.docs.map((d) => [d.slug, fs.readFileSync(path.join('build/fragments', `${d.slug}.html`), 'utf8')]));
+  const sources = sourcesOf('.', manifest);
+  const sections = JSON.parse(fs.readFileSync('build/sections.json', 'utf8'));
+  const git = (args) => { try { return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; } catch { return null; } };
+  const version = {
+    id: null,
+    digest: digest(manifest, fragments, sources),
+    // The commit's own time, not the clock: the same commit builds the same version.
+    published_at: git(['log', '-1', '--format=%cI']) ? new Date(git(['log', '-1', '--format=%cI'])).toISOString() : new Date().toISOString(),
+    published_by: null,
+    commit: process.env.GITHUB_SHA || git(['rev-parse', 'HEAD']),
+    manifest, fragments, sections, sources, statuses: {},
+    // So rows mode can import this build exactly, numbers and retired ones included.
+    lockText: fs.existsSync('content/questions.lock') ? fs.readFileSync('content/questions.lock', 'utf8') : null,
+  };
+  fs.writeFileSync('build/version.json', JSON.stringify(version));
+  console.log(`band layout: version ${version.digest.slice(0, 12)} (${manifest.docs.length} documents)`);
+}

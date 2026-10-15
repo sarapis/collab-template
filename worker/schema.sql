@@ -165,3 +165,75 @@ CREATE TABLE IF NOT EXISTS app_secrets (
   set_at TEXT NOT NULL,
   set_by TEXT NOT NULL
 );
+
+-- ─── Content as rows (content.source: rows; v1.1.0) ─────────────────────────
+--
+-- ⚠️ Only an instance that sets `content.source: rows` writes these. For every
+-- other instance they stay empty, and the documents and the question catalog
+-- live in git as before. On a rows instance this is the reverse: these rows are
+-- the content, edited on the site, and git holds a nightly EXPORT of them
+-- (.github/workflows/content-export.yml) that nothing reads back.
+--
+-- The compiler stays the one renderer: a save writes the rows back into the
+-- file tree the compiler reads (README.md, content/**.md, the lock), compiles it
+-- in the Worker, and stores the output as a version.
+
+-- One row per file of that tree. `path` is the file's path under the project
+-- root: README.md, content/<slug>.md, content/questions.lock.
+-- status: published | members | draft | archived. A draft is never compiled.
+CREATE TABLE IF NOT EXISTS content_items (
+  path        TEXT PRIMARY KEY,
+  status      TEXT NOT NULL DEFAULT 'published',
+  body        TEXT NOT NULL,
+  revision    INTEGER NOT NULL DEFAULT 1,
+  updated_at  TEXT NOT NULL,
+  updated_by  TEXT NOT NULL
+);
+
+-- Append-only: every state a row has had, the current one included, so any of
+-- them can be restored. ⚠️ The primary key is what refuses two saves of the
+-- same row from the same starting revision: the second one's batch fails whole.
+CREATE TABLE IF NOT EXISTS content_revisions (
+  path      TEXT NOT NULL,
+  revision  INTEGER NOT NULL,
+  status    TEXT NOT NULL,
+  body      TEXT NOT NULL,
+  saved_at  TEXT NOT NULL,
+  saved_by  TEXT NOT NULL,
+  note      TEXT,
+  PRIMARY KEY (path, revision)
+);
+
+-- Every compiled version. `payload` is JSON: { manifest, fragments, sections,
+-- sources, statuses, lockText }. `digest` is HOST-CONTRACT.md's, over manifest,
+-- fragments and sources, so the rows, the git export and the live site can be
+-- shown to carry the same one.
+-- ⚠️ `id` is chosen by the save as MAX(id)+1, so two saves racing for the same
+-- id collide on the primary key and the later batch fails whole: a version
+-- always contains every save before it.
+CREATE TABLE IF NOT EXISTS site_versions (
+  id               INTEGER PRIMARY KEY,
+  digest           TEXT NOT NULL,
+  created_at       TEXT NOT NULL,
+  created_by       TEXT NOT NULL,
+  created_by_name  TEXT,
+  reason           TEXT,
+  payload          TEXT NOT NULL
+);
+
+-- The live pointer: one row. A save inserts a version and moves this in the
+-- same batch; a rollback moves it back.
+CREATE TABLE IF NOT EXISTS site_live (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  version_id  INTEGER NOT NULL,
+  moved_at    TEXT NOT NULL,
+  moved_by    TEXT NOT NULL
+);
+
+-- Append-only: every move of the pointer, by whom and why.
+CREATE TABLE IF NOT EXISTS site_live_log (
+  at          TEXT NOT NULL,
+  version_id  INTEGER NOT NULL,
+  moved_by    TEXT NOT NULL,
+  reason      TEXT
+);

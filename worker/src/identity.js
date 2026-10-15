@@ -23,7 +23,24 @@ export const ANON = { authenticated: false, can_write: false, sub: null, name: n
 // part). Two correct copies and one absent copy is indistinguishable from
 // three correct copies until somebody checks, which is why this is a function
 // and not a habit.
-export const canRead = (env, me) => flag(env, 'PUBLIC_READ') || !!me?.authenticated;
+//
+// `item`, when given, is one piece of content with a per-item `status`
+// (version.js; content as rows). The same rule, narrowed:
+//   members   only somebody on the roster, even on a public instance
+//   draft     only an editor (it is never compiled; a preview shows one)
+// Anything else reads as the site does. ⚠️ A status this function does not know
+// is refused: the safe reading of a visibility you do not understand is "not you".
+const ITEM_STATUSES = new Set(['published', 'archived', 'members', 'draft']);
+export const isEditor = (me) => !!me?.authenticated && !me.disabled && (me.role === 'admin' || me.role === 'contributor');
+export const canRead = (env, me, item) => {
+  const site = flag(env, 'PUBLIC_READ') || !!me?.authenticated;
+  if (!site || item === undefined) return site;
+  const status = item?.status ?? 'published';
+  if (!ITEM_STATUSES.has(status)) return false;
+  if (status === 'members') return !!me?.authenticated;
+  if (status === 'draft') return isEditor(me);
+  return true;
+};
 
 // Constant-time compare. An unknown token must take the same path as a known
 // one, or the timing enumerates who has access.
