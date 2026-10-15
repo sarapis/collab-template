@@ -22,6 +22,11 @@ tags. A consumer takes it at an exact tag and proves it has not drifted
 
 ### Input
 
+The compiler reads the project either from a directory (`compile({ root })`) or
+from memory (`compileFiles({ files })`, `packages/compile/src/core.js`, which
+imports nothing from Node so a Worker can run it). The output is identical;
+`worker/test/version.test.js` holds the two equal on the conformance fixture.
+
 | Path (under the project root) | Role |
 | --- | --- |
 | `site.config.yml` | `project` (passed through whole), `audiences`, `asked_rounds`, `references`. Other keys are the host's |
@@ -141,25 +146,25 @@ something only Databook has. "Today" says what the Worker host already does.
 
 | Feature | Decisions | Tag | Today in the Worker host | Notes for the port |
 | --- | --- | --- | --- | --- |
-| Header band: breadcrumb (Workspace / project / page) and the pages as pills | 28, 34 | PORTABLE | A left sidebar with the brand | The band's colours come from design tokens, never `.db-*` |
-| Tools box: About, Activity, Questions, Get involved; open or icons-only per `project.tools` | 26, 28, 35 | PORTABLE | Overview group in the sidebar | `project.tools` in site.config.yml, passed through the manifest |
-| Home cards with live counts (and an instance's own figures) | 25, 31 | PORTABLE | `/summary/` with computed counts | Counts from the manifest or a host query, never typed |
-| About replaces Start here and Summary (`/start`, `/summary` redirect to it) | 29 | PORTABLE | `/start/` (README) and `/summary/` | `#method` and `#limits` anchors; "Where things stand" counted beneath |
-| Get involved: the project's own partial `get-involved`, then the shared ways in | 30 | PORTABLE | In the README | The ways in are the Worker's: roster sign-in, MCP at `/mcp`, `/connect` |
-| Activity filterable by type (`?type=`), absorbing Decisions and site updates | 35 | PORTABLE | Separate `/activity/` and `/decisions/` | `/decisions/` redirects to `?type=decisions`; "About this site" tag via `project.site_decisions` |
-| Question topics with names, in order | 32 | PORTABLE | `group` keys shown raw | `project.groups`: a list of `{key, label}` |
-| Status banners: Draft, Members only, Archived | 38 | PORTABLE | None | Driven by per-item status once content is rows |
-| Version footer: live version, its digest and when it was published | 37, 38 | PORTABLE | None | The digest is Part 1's |
-| Side panel: the documents list and "where things stand" counts | 34, 35 | PORTABLE | Contents / Comments rail | Counts from the viewer's filtered manifest |
-| Content as rows: documents, questions, About, Get involved, pages | 37, 40 | PORTABLE | Content is files in git | D1 tables; the rows are written back to the same file tree and compiled, so the compiler stays the one renderer |
-| Per-item statuses (documents: Published, Members only, Draft, Archived; questions: Draft, Open, Resolved, Hidden; pages: Public, Members only, Draft, Archived) | 38 | PORTABLE | None | A draft never reaches a compiled version; a retired number stays a row |
-| Revisions with restore; preview of an unsaved edit | 37, 38 | PORTABLE | None (answers already keep revisions) | |
-| Rebuild on save, with rollback; versions with a live pointer | 37 | PORTABLE | Deploy on merge | Insert a version and move the pointer in one transaction; rollback moves it back |
-| The round-trip test: rows, git and the live site carry one digest | 37 | PORTABLE | None | Part 1's digest, so it is checkable across hosts |
-| Nightly export to a git repo by a scheduled Action; the server never holds a git write credential | 37 | PORTABLE | None | ⚠️ The target repo is a SETTING (Part 3) |
-| Members-only items 404 to everyone else, sent `no-store`, kept off caches, sitemaps and `llms.txt` | 39 | PORTABLE | Site-wide private mode only | Per-item gate inside `canRead()`; one read rule for pages, `/api/`, `/mcp` |
-| Editors are admins plus the project's reviewers; members are the roster | 39 | PORTABLE | Roster roles: admin, contributor, user | Map onto the roster, not onto Databook grants |
-| Questions edited as fields and placed in a document section | 40 | PORTABLE | Authored inline in markdown | Placement writes the `:::question` block back into the file tree |
+| Header band: breadcrumb (Workspace / project / page) and the pages as pills | 28, 34 | PORTABLE | Built in v1.1.0: `site.layout: band` (`worker/src/render.js`) | The band's colours come from design tokens, never `.db-*` |
+| Tools box: About, Activity, Questions, Get involved; open or icons-only per `project.tools` | 26, 28, 35 | PORTABLE | Built in v1.1.0: `project.tools` | `project.tools` in site.config.yml, passed through the manifest |
+| Home cards with live counts (and an instance's own figures) | 25, 31 | PORTABLE | Built in v1.1.0: Home, counted from the viewer's version, with "waiting for you" from D1 | Counts from the manifest or a host query, never typed |
+| About replaces Start here and Summary (`/start`, `/summary` redirect to it) | 29 | PORTABLE | Built in v1.1.0: `/about/`; `/start/` and `/summary/` 301 there | `#method` and `#limits` anchors; "Where things stand" counted beneath |
+| Get involved: the project's own partial `get-involved`, then the shared ways in | 30 | PORTABLE | Built in v1.1.0: `/get-involved/` | The ways in are the Worker's: roster sign-in, MCP at `/mcp`, `/connect` |
+| Activity filterable by type (`?type=`), absorbing Decisions and site updates | 35 | PORTABLE | Built in v1.1.0: `/activity/?type=`; `/decisions/` 301s | `/decisions/` redirects to `?type=decisions`; "About this site" tag via `project.site_decisions` |
+| Question topics with names, in order | 32 | PORTABLE | Built in v1.1.0, both layouts: `project.groups` | `project.groups`: a list of `{key, label}` |
+| Status banners: Draft, Members only, Archived | 38 | PORTABLE | Built in v1.1.0: from the item's status | Driven by per-item status once content is rows |
+| Version footer: live version, its digest and when it was published | 37, 38 | PORTABLE | Built in v1.1.0 | The digest is Part 1's |
+| Side panel: the documents list and "where things stand" counts | 34, 35 | PORTABLE | Built in v1.1.0: the rail | Counts from the viewer's filtered manifest |
+| Content as rows: documents, questions, About, Get involved, pages | 37, 40 | PORTABLE | Built in v1.1.0: `content.source: rows` (`worker/src/content.js`) | D1 tables; the rows are written back to the same file tree and compiled, so the compiler stays the one renderer |
+| Per-item statuses (documents: Published, Members only, Draft, Archived; questions: Draft, Open, Resolved, Hidden; pages: Public, Members only, Draft, Archived) | 38 | PORTABLE | Built in v1.1.0 (question statuses are attributes; `draft=true` is new) | A draft never reaches a compiled version; a retired number stays a row |
+| Revisions with restore; preview of an unsaved edit | 37, 38 | PORTABLE | Built in v1.1.0 | |
+| Rebuild on save, with rollback; versions with a live pointer | 37 | PORTABLE | Built in v1.1.0: the Worker compiles with `compileFiles` | Insert a version and move the pointer in one transaction; rollback moves it back |
+| The round-trip test: rows, git and the live site carry one digest | 37 | PORTABLE | Built in v1.1.0: `worker/test/rows.test.js` and the export Action | Part 1's digest, so it is checkable across hosts |
+| Nightly export to a git repo by a scheduled Action; the server never holds a git write credential | 37 | PORTABLE | Built in v1.1.0: `content.export` (repo, path, branch, push_branch) | ⚠️ The target repo is a SETTING (Part 3) |
+| Members-only items 404 to everyone else, sent `no-store`, kept off caches, sitemaps and `llms.txt` | 39 | PORTABLE | Built in v1.1.0: `canRead(env, me, item)` applied in `forViewer()` | Per-item gate inside `canRead()`; one read rule for pages, `/api/`, `/mcp` |
+| Editors are admins plus the project's reviewers; members are the roster | 39 | PORTABLE | Built in v1.1.0: roster roles admin and contributor | Map onto the roster, not onto Databook grants |
+| Questions edited as fields and placed in a document section | 40 | PORTABLE | Partly, in v1.1.0: a question's status is set as a field (`PATCH /api/content/question`); its text is still edited in the document | Placement writes the `:::question` block back into the file tree |
 | Live artifacts: Databook pages framed as a site's pages (`project.artifacts`) | 20, 21, 22 | DATABOOK-ONLY | `site.nav.artifacts` links | The frame wraps Laravel routes; a Worker instance links out instead |
 | Comments on artifacts, beside the questions that cite them | 22 | DATABOOK-ONLY | Comments on documents and sections | Needs live artifacts |
 | Open-source recommendations moved to a Workspace queue | 23 | DATABOOK-ONLY | n/a | Annotation queue |
@@ -172,7 +177,8 @@ something only Databook has. "Today" says what the Worker host already does.
 
 ## Part 3. What a later instance needs that the template must not block
 
-These are requirements on the template's SHAPE. None is built here.
+These are requirements on the template's SHAPE. The export target became a
+setting in v1.1.0; the others stand as written.
 
 - **Another sign-in provider** (for example a signed, short-lived ticket from a
   CMS on another domain). Each provider in `worker/src/auth.js` has one job: prove

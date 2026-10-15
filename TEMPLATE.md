@@ -45,7 +45,13 @@ two codebases.
 | `public` | What `/llms.txt` says: `repo`, `contact` (a team, never a person's address), `llms_txt: false` to publish nothing |
 | `chat` | `enabled`, `retention_days` |
 | `site.passthrough` | Self-contained pages copied as-is, `{from, to}`; the gate exempts them from layout checks |
-| `site.nav.artifacts` | Extra sidebar links under Artifacts, `{href, label}` |
+| `site.nav.artifacts` | Extra sidebar links under Artifacts, `{href, label}` (in the band layout, extra page pills) |
+| `site.layout` | `classic` (the default: the v1.0.0 sidebar, built by Eleventy) or `band` (see "The band layout") |
+| `content.source` | `git` (the default: `content/` in this repository) or `rows` (D1, edited on the site; needs `site.layout: band`) |
+| `content.export` | Rows only. `repo` (owner/name), `path`, `branch` (the target's base, default `main`), `push_branch` (default `collab-export/<project.id>`): where the nightly Action writes the content |
+| `project.tools` | Band only. `open` or `closed` (the default): whether the Tools box starts with its names showing |
+| `project.groups` | Question topics with names, in order: a list of `{key, label}`. Unset, the raw `group` keys show, as before |
+| `project.site_decisions` | Band only. Slugs of decision documents about the website itself, tagged "About this site" in Activity |
 | `gate.foreign_resources` | Other instances' D1 and KV ids and hostnames, which yours must never point at |
 
 `wrangler.jsonc` holds your Cloudflare account, Worker name, custom domain, D1
@@ -54,6 +60,69 @@ the sample is a placeholder.
 
 `design/tokens.css` is your theme: colours, type and radii as CSS custom
 properties, for light and both dark selectors. Theming goes through tokens only.
+
+Every new key has a default that leaves an instance exactly as v1.0.0 built it
+(`worker/src/settings.js`). A combination that cannot work (rows without the
+band layout, an export without rows) fails the build with a sentence.
+
+## The band layout
+
+`site.layout: band` is the layout Databook's project sites settled on
+(HOST-CONTRACT.md Part 2): a header band with a breadcrumb and the pages as
+pills; a Tools box (About, Activity, Questions, Get involved) that opens with no
+script; Home with cards counted from the live version; About in place of
+`/start/` and `/summary/` (both 301 there); Get involved (your partial
+`content/get-involved.md` if you write one, then the ways in this Worker
+offers); Activity filterable by `?type=` with Decisions, posts, question rounds,
+answers and comments, and site updates (`/decisions/` 301s to
+`?type=decisions`); a rail with the documents and "where things stand"; and a
+footer naming the live version, its digest and when it was published.
+
+The Worker renders these pages per viewer from the LIVE VERSION
+(`worker/src/version.js`): in git mode the build (`/_build/version.json`, never
+served), in rows mode a row in D1. Pages Eleventy builds (admin, design,
+notifications) are wrapped in the same layout. The theme is `design/tokens.css`
+as always; `site/band.css` uses only its tokens.
+
+**Per-item statuses** (rows mode): a document is Published, Members only, Draft
+or Archived. Members only is a 404 to anyone not on the roster, sent `no-store`,
+and gone from every list, count, `/manifest.json`, `/source/`, MCP and the
+assistant: the rule is `canRead(env, me, item)` and the one place it is applied
+is `forViewer()`, which every door reads through (`band.js` `viewEnv`). Draft is
+never compiled. Archived still opens, with a banner, and leaves the menus. A
+question's status (open, resolved, hidden, draft) is its attributes;
+`draft=true` keeps it off the site and in the export's `drafts.json`.
+
+## Content as rows
+
+`content.source: rows` moves the documents, About and the question lock into D1
+(`content_items`, with every revision in `content_revisions`). Editors (admins and
+contributors) edit at `/admin/content/`. A save writes the rows back into the file
+tree the compiler reads, compiles it in the Worker with the same compiler, and,
+only if it compiles, inserts a version and moves the live pointer in one batch.
+A save that does not compile changes nothing and returns the compiler's errors.
+Preview shows an unsaved edit under a Draft banner. Making an earlier version
+live is a rollback; restoring a revision is a save.
+
+To switch an instance:
+
+1. Apply `worker/schema.sql` (v1.1.0 adds five tables).
+2. Set `site.layout: band` and `content.source: rows`, build and deploy.
+3. As an admin, open `/admin/content/` and "Import from the deployed build".
+   From then on `content/` in this repository is only that seed: `npm run new`
+   refuses, and edits made there reach nothing.
+
+**The nightly export** (`.github/workflows/content-export.yml`) writes the rows to
+git, to the repository and path `content.export` names, which may be another
+repository than this one. ⚠️ The Worker never holds a git credential: the Action
+reads `/api/content/export` with the read-only `EXPORT_TOKEN` (32 characters or
+more; a Worker secret and, with the same value, a repository secret), checks the
+round trip (the exported tree compiles, with the CLI's compiler, to the digest the
+live site serves), and pushes ONE branch of the target, `push_branch`, with a
+deploy key that exists only on the target (`EXPORT_DEPLOY_KEY`). It never pushes
+the target's base branch. A rollback shows as a failed round trip that says so.
+Set the repository variable `COLLAB_URL`. ⚠️ Members-only text is in the export:
+the target must be private.
 
 ## Override points
 
@@ -99,6 +168,9 @@ document. Your content will too.
 npm run template -- update v1.1.0   # rewrites every template file and the pin
 npm ci && npm run build && npm test
 ```
+
+`RELEASES.md` says what each version changed and whether it changed
+`worker/schema.sql`.
 
 Read the template's release notes first: a version that changes
 `worker/schema.sql` needs the new statements applied to your D1 database.
