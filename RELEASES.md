@@ -3,6 +3,29 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.2.0 — Sign in with the CMS
+
+**⚠️ `worker/schema.sql` changed:** one table added, `auth_tickets_used`
+(`CREATE TABLE IF NOT EXISTS`). Apply it before turning the provider on; until
+then a CMS sign-in is refused, safely, because the ticket cannot be burned.
+
+A new sign-in provider for a CMS on another domain that hands identity across as
+a signed, two-minute ticket (`worker/src/cms.js`; the pattern of
+Civic-Tech-Field-Guide/ctfg-website's tenant pass). Like every provider it
+proves an email and nothing else; the roster in D1 decides. It is on only when
+both are set:
+
+- `CMS_PASS_SECRET` (secret, 32+ characters, the same value the CMS holds)
+- `CMS_URL` (var, `https://` only), and optionally `CMS_LABEL` for the button
+
+A ticket is refused if it is for another host, from another sign-in attempt
+(state, so nobody can sign you in as them), expired, claiming more than five
+minutes, of another kind, or already used. The CMS must offer
+`GET /api/collab-pass/start?host=&state=` and only mint for hosts it lists.
+`worker/test/cms.test.js` holds a test vector the CMS's own test asserts too.
+
+Nothing changes for an instance that does not set the two values.
+
 ## v1.1.0 — Databook's host features, ported to the Worker host
 
 **⚠️ `worker/schema.sql` changed.** Five tables were added: `content_items`,

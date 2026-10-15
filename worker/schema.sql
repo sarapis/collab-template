@@ -237,3 +237,11 @@ CREATE TABLE IF NOT EXISTS site_live_log (
   moved_by    TEXT NOT NULL,
   reason      TEXT
 );
+
+-- ─── Sign in with the CMS (v1.2.0; worker/src/cms.js) ─────────────────────
+-- Each CMS ticket is accepted once. A row lives until the ticket would have
+-- expired anyway, and the next sign-in sweeps it.
+CREATE TABLE IF NOT EXISTS auth_tickets_used (
+  sig         TEXT PRIMARY KEY,
+  expires_at  INTEGER NOT NULL
+);

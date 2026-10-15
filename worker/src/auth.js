@@ -11,6 +11,7 @@ import { findByEmail } from './identity.js';
 import { flag } from './flag.js';
 import { PROJECT } from './site.generated.js';
 import { secretValue } from './secrets.js';
+import { cmsEnabled, cmsSecret, verifyTicket, burnTicket } from './cms.js';
 
 // The sign-in page is served by the Worker, not built by Eleventy, so it cannot
 // use the site's stylesheet for layout -- there is no sidebar or rail here. It
@@ -103,6 +104,8 @@ async function enabled(env) {
     google: !!(gid && gsecret),
     github: !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
     email: !!env.MAGIC_LINK_FROM,
+    // On when its secret (32+ characters) and the CMS's address are set.
+    cms: cmsEnabled(env),
   };
 }
 
@@ -118,7 +121,8 @@ async function loginPage(env, url, note = '') {
   if (note) parts.push(`<p class="note">${note}</p>`);
   if (on.google) parts.push(`<a class="btn" href="/auth/google/start?next=${next}">Continue with Google</a>`);
   if (on.github) parts.push(`<a class="btn" href="/auth/github/start?next=${next}">Continue with GitHub</a>`);
-  if ((on.google || on.github) && on.email) parts.push('<hr class="rule">');
+  if (on.cms) parts.push(`<a class="btn" href="/auth/cms/start?next=${next}">Sign in with ${esc(env.CMS_LABEL || 'the CMS')}</a>`);
+  if ((on.google || on.github || on.cms) && on.email) parts.push('<hr class="rule">');
   if (on.email) {
     parts.push(`<form method="post" action="/auth/email/start">
       <input type="hidden" name="next" value="${decodeURIComponent(next)}">
@@ -126,7 +130,7 @@ async function loginPage(env, url, note = '') {
       <input id="e" name="email" type="email" required autocomplete="email" placeholder="you@example.org">
       <button class="btn primary" type="submit">Send the link</button></form>`);
   }
-  if (!on.google && !on.github && !on.email) {
+  if (!on.google && !on.github && !on.email && !on.cms) {
     parts.push('<p>No sign-in method is configured for this instance yet.</p>');
   }
   // Access is a committed list, so being turned away is not a mistake to
@@ -261,6 +265,31 @@ async function githubCallback(request, env, url) {
   return land(env, person, state.split('|').slice(1).join('|'));
 }
 
+// --- The CMS (a signed ticket from another domain; cms.js) -----------------
+
+async function cmsStart(env, url) {
+  const state = crypto.randomUUID();
+  const next = url.searchParams.get('next') || '/';
+  const go = new URL('/api/collab-pass/start', env.CMS_URL);
+  go.searchParams.set('host', url.host);
+  go.searchParams.set('state', state);
+  // `next` stays HERE, in the signed state cookie: the CMS never sees where
+  // the person was going, and cannot be made to send them anywhere else.
+  return redirect(go.toString(), { 'set-cookie': await setState(env, `${state}|${next}`) });
+}
+
+async function cmsCallback(request, env, url) {
+  const raw = readCookie(request, 'collab_state');
+  const st = raw ? await verify(raw, env.SESSION_SECRET) : null;
+  const [state, ...rest] = String(st?.v || '').split('|');
+  const claims = await verifyTicket(url.searchParams.get('ticket'), cmsSecret(env), { host: url.host, state });
+  if (!claims) return html('<h1>That sign-in did not check out</h1><p>It may have taken too long, or been started in another tab. Start again from <a href="/auth/login">the sign-in page</a>.</p>', 400);
+  if (!(await burnTicket(env, claims.sig, claims.expires))) return html('<h1>That sign-in link was already used</h1><p>Start again from <a href="/auth/login">the sign-in page</a>.</p>', 400);
+  const person = await findByEmail(env, claims.email);
+  if (!person) return refused();
+  return land(env, person, rest.join('|'));
+}
+
 // --- Magic link -----------------------------------------------------------
 
 async function emailStart(request, env, url) {
@@ -389,6 +418,8 @@ export async function handleAuth(request, env, url) {
   if (p === '/auth/google/callback' && on.google) return googleCallback(request, env, url);
   if (p === '/auth/github/start' && on.github) return githubStart(env, url);
   if (p === '/auth/github/callback' && on.github) return githubCallback(request, env, url);
+  if (p === '/auth/cms/start' && on.cms) return cmsStart(env, url);
+  if (p === '/auth/cms/callback' && on.cms) return cmsCallback(request, env, url);
   if (p === '/auth/email/start' && on.email && request.method === 'POST') return emailStart(request, env, url);
   if (p === '/auth/email/verify' && on.email) return emailVerify(env, url);
 
