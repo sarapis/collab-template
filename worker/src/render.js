@@ -40,6 +40,31 @@ export function listedDocs(version, type = 'doc') {
     && (version.statuses?.[d.slug] || 'published') !== 'archived');
 }
 
+// The listed documents in named groups (`project.doc_groups`: a list of
+// {prefix, label}, in order). A document goes in the first group whose prefix
+// its slug starts with; the rest form a last, unnamed group. Unset, there is
+// one group, as before.
+export function docGroups(version, docs) {
+  const declared = version.manifest.project?.doc_groups || [];
+  const groups = declared.map((g) => ({ label: g.label || g.prefix, docs: [] }));
+  const rest = [];
+  for (const d of docs) {
+    const i = declared.findIndex((g) => g.prefix && d.slug.startsWith(g.prefix));
+    (i >= 0 ? groups[i].docs : rest).push(d);
+  }
+  return [...groups.filter((g) => g.docs.length), ...(rest.length ? [{ label: null, docs: rest }] : [])];
+}
+
+// The documents the header shows as pills: `project.pills` (slugs, in order)
+// when set, else every listed document, as before. ⚠️ Drawn from the VIEWER's
+// listed documents, so a pill naming one this viewer may not see is simply
+// not there.
+export function pillDocs(version, docs) {
+  const want = version.manifest.project?.pills;
+  if (!Array.isArray(want)) return docs;
+  return want.map((slug) => docs.find((d) => d.slug === slug)).filter(Boolean);
+}
+
 const ICONS = {
   about: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
   activity: '<path d="M3 12h4l3 7 4-14 3 7h4"/>',
@@ -119,7 +144,7 @@ export function layout(ctx, page) {
 
   const pills = [
     `<a class="pill" href="/"${cur(path === '/')}>Home</a>`,
-    ...docs.map((d) => `<a class="pill" href="/${esc(d.slug)}/"${cur(path === `/${d.slug}/`)}>${esc(d.title)}</a>`),
+    ...pillDocs(version, docs).map((d) => `<a class="pill" href="/${esc(d.slug)}/"${cur(path === `/${d.slug}/`)}>${esc(d.title)}</a>`),
     ...artifacts.map((a) => `<a class="pill" href="${esc(a.href)}"${cur(path === a.href)}>${esc(a.label)}</a>`),
   ].join('');
 
@@ -194,7 +219,7 @@ ${page.noindex ? '<meta name="robots" content="noindex">\n' : ''}<link rel="styl
   <main>${banner(page.status)}${body}</main>
   <button class="rail-switch" type="button" id="rail-switch" aria-controls="rail" aria-expanded="true">Hide contents</button>
   <aside class="rail" id="rail">
-    <nav class="rail-section" aria-label="Documents">${railDocs(docs, 'Documents')}${railDocs(data, 'Data')}</nav>
+    <nav class="rail-section" aria-label="Documents">${docGroups(version, docs).map((g) => railDocs(g.docs, esc(g.label || (docGroups(version, docs).length > 1 ? 'Other documents' : 'Documents')))).join('')}${railDocs(data, 'Data')}</nav>
     <section class="rail-section">
       <p class="menu-head">Where things stand</p>
       <p class="counts">${standing(version)}</p>
@@ -347,13 +372,14 @@ ${summary ? fragment(version, 'summary') : ''}
   <a class="card home-card" href="/activity/"><span class="home-kicker">Activity</span>${latest ? `<span class="home-latest">${esc(latest.doc ? latest.doc.title : latest.round.label)}</span><span class="counts">${esc(day(latest.at))}</span>` : '<span class="counts">Nothing yet</span>'}</a>
 </div>
 <h2 id="documents">Documents</h2>
+${docs.length ? docGroups(version, docs).map((g, i, all) => `${all.length > 1 ? `<h3 id="documents-${i + 1}">${esc(g.label || 'Other documents')}</h3>` : ''}
 <div class="cards">
-${docs.map((d) => {
+${g.docs.map((d) => {
     const n = m.questions.filter((q) => q.doc === d.slug && !q.hidden && !q.resolved).length;
     const sections = (d.headings || []).filter((h) => h.level === 2 && h.id).length;
     return `<article class="card"><p><a href="/${esc(d.slug)}/"><strong>${esc(d.title)}</strong></a></p><p class="counts">${plural(sections, 'section')} · ${n} open</p></article>`;
-  }).join('\n') || '<p class="muted">No documents yet.</p>'}
-</div>
+  }).join('\n')}
+</div>`).join('\n') : '<p class="muted">No documents yet.</p>'}
 <h2 id="next">Where to go next</h2>
 <div class="cards">
   <a class="orient" href="/about/"><span class="orient-kicker">New here?</span><span class="orient-title">About</span><span class="orient-detail">What this project is, how the site works, and where things stand.</span></a>

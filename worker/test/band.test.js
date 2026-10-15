@@ -282,3 +282,33 @@ test('the Tools box offers the admin pages as icons too, so a closed box still r
   assert.ok(links.length >= 3);
   for (const l of links) assert.match(l, /<svg class="tool-icon"/, `${l.slice(0, 60)} has no icon`);
 });
+
+test('project.pills chooses the header’s pills; unset, every listed document is one', async () => {
+  const v = sampleVersion();
+  const pillsOf = (b) => [...b.match(/<nav class="pills"[\s\S]*?<\/nav>/)[0].matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(pillsOf((await html(await bandEnv({ version: v }), '/', ADMIN)).body), ['/', '/plan/']);
+  v.manifest.project.pills = [];
+  assert.deepEqual(pillsOf((await html(await bandEnv({ version: v }), '/', ADMIN)).body), ['/'], 'an empty list leaves Home alone');
+  v.manifest.project.pills = ['no-such-doc', 'plan'];
+  assert.deepEqual(pillsOf((await html(await bandEnv({ version: v }), '/', ADMIN)).body), ['/', '/plan/'], 'a slug that is not a listed document is skipped');
+});
+
+test('a pill never names a document this viewer may not see', async () => {
+  const v = sampleVersion();
+  v.manifest.project.pills = ['plan'];
+  v.statuses = { plan: 'members' };
+  const env = await bandEnv({ version: v, publicRead: true });
+  const body = await (await fetch(env, '/', null)).text();
+  assert.doesNotMatch(body.match(/<nav class="pills"[\s\S]*?<\/nav>/)[0], /\/plan\//);
+});
+
+test('project.doc_groups groups the documents in the rail and on Home', async () => {
+  const v = sampleVersion();
+  v.manifest.project.doc_groups = [{ prefix: 'pl', label: 'Plans' }];
+  const { body } = await html(await bandEnv({ version: v }), '/', ADMIN);
+  assert.match(body, /<p class="menu-head">Plans<\/p><ul class="rail-docs"><li><a href="\/plan\/"/);
+  v.manifest.project.doc_groups = [{ prefix: 'runbooks/', label: 'Runbooks' }];
+  const none = (await html(await bandEnv({ version: v }), '/', ADMIN)).body;
+  assert.match(none, /<p class="menu-head">Documents<\/p>/, 'an empty group is not drawn, and a lone remainder keeps the plain heading');
+  assert.doesNotMatch(none, /Runbooks/);
+});

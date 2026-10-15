@@ -18,7 +18,9 @@
 //
 // Project-level settings the compiler passes through in `project` are read
 // from the manifest, not here: `project.tools` (open | closed),
-// `project.groups` ([{key, label}]) and `project.site_decisions` ([slug]).
+// `project.groups` ([{key, label}]), `project.site_decisions` ([slug]),
+// `project.pills` ([slug]: the header's pills; default every listed document)
+// and `project.doc_groups` ([{prefix, label}]: the documents list's groups).
 export function settingsFrom(config = {}) {
   const layout = config.site?.layout === 'band' ? 'band' : 'classic';
   const source = config.content?.source === 'rows' ? 'rows' : 'git';
@@ -53,6 +55,10 @@ export function settingsProblems(config = {}) {
   if (s.content.export && s.content.source !== 'rows') out.push('content.export is set but content.source is not rows: there is nothing to export');
   const tools = config.project?.tools;
   if (tools != null && !['open', 'closed'].includes(tools)) out.push(`project.tools is "${tools}"; it is open or closed`);
+  const pills = config.project?.pills;
+  if (pills != null && (!Array.isArray(pills) || pills.some((x) => typeof x !== 'string'))) out.push('project.pills is a list of document slugs, in order');
+  const dg = config.project?.doc_groups;
+  if (dg != null && (!Array.isArray(dg) || dg.some((g) => !g?.prefix))) out.push('project.doc_groups is a list of {prefix, label}, in order');
   const groups = config.project?.groups;
   if (groups != null && (!Array.isArray(groups) || groups.some((g) => !g?.key))) out.push('project.groups is a list of {key, label}, in order (a map would lose its order)');
   return out;

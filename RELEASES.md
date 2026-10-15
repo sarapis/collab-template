@@ -3,6 +3,21 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.4.0 — Choose the header's pills; group the documents
+
+**`worker/schema.sql` is unchanged.** Band layout only; both settings are
+optional and default to what v1.3.1 did.
+
+- `project.pills`: the documents the header shows as pills, a list of slugs in
+  order. Unset, every listed document is a pill (as before), which stops
+  working once a site has more than a handful. A slug the viewer may not see,
+  or that is not a listed document, is skipped.
+- `project.doc_groups`: a list of `{prefix, label}`, in order. The rail and
+  Home group the documents under those labels by slug prefix (`runbooks/`,
+  `briefs/`, ...); the rest come last, under "Other documents".
+
+Tests: 402 → 406.
+
 ## v1.3.1 — Band layout fixes from the first real site
 
 **`worker/schema.sql` is unchanged.** Band layout only; classic is untouched.
