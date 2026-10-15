@@ -35,8 +35,31 @@ export function host({ layout = 'band', source = 'git', tools, groups } = {}) {
   };
 }
 
+// ⚠️ A binding the way the Workers runtime hands one over, not a plain object.
+// `env.ASSETS` is an RPC stub: asking it for ANY property it does not have
+// returns another stub (truthy), and calling that throws "The RPC receiver
+// does not implement the method". Code that probed a binding for a marker of
+// its own (`env.ASSETS?.real`) passed every test against a plain object and
+// threw on every signed-in page in production (v1.2.0, ctfg-collab, 2026-10-15).
+export function rpcBinding(fetch) {
+  const stub = (name) => {
+    const fail = () => { throw new TypeError(`The RPC receiver does not implement the method "${name}".`); };
+    return new Proxy(fail, { get: (_, p) => (p === 'then' ? undefined : stub(`${name}.${String(p)}`)) });
+  };
+  return new Proxy({ fetch }, { get: (t, p) => (p in t ? t[p] : p === 'then' ? undefined : stub(String(p))) });
+}
+
 // An ASSETS binding: the version at /_build/version.json, and any `pages`.
 export function assets(version, pages = {}) {
+  return rpcBinding(async (req) => {
+    const p = new URL(req.url).pathname;
+    if (p === '/_build/version.json') return new Response(JSON.stringify(version), { headers: { 'content-type': 'application/json' } });
+    if (pages[p] != null) return new Response(pages[p], { headers: { 'content-type': p.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8' } });
+    return new Response('Not found', { status: 404 });
+  });
+}
+
+export function plainAssets(version, pages = {}) {
   return {
     async fetch(req) {
       const p = new URL(req.url).pathname;

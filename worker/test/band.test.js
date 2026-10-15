@@ -250,3 +250,14 @@ test('classic is untouched: without the setting no band page is rendered', async
   const r = await fetch(env, '/about/', ADMIN);
   assert.equal(r.status, 404, 'classic serves /about/ from the assets, which have none');
 });
+
+test('the bindings are probed for nothing: a runtime-shaped ASSETS serves a signed-in page', async () => {
+  // fixture.js rpcBinding: any property the code asks of the binding is a
+  // truthy stub that throws when used, as in the Workers runtime.
+  const env = await bandEnv();
+  assert.equal(typeof env.ASSETS.anything, 'function', 'the test double behaves like a runtime stub');
+  for (const p of ['/', '/how-we-work/', '/questions/', '/activity/']) {
+    const r = await fetch(env, p.replace('how-we-work', 'plan'), ADMIN);
+    assert.equal(r.status, 200, `${p} answered ${r.status}`);
+  }
+});

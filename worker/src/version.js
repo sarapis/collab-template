@@ -34,6 +34,16 @@ export async function digestOf(manifest, fragments, sources) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// ⚠️ The viewer's wrappers, each mapped to the real binding it wraps. Kept HERE,
+// never as a property on the binding or the wrapper: in the Workers runtime
+// `env.ASSETS` is an RPC stub, and asking it for any property it does not have
+// returns a truthy stub that throws when used. Probing it for a marker
+// (`env.ASSETS?.real`, v1.2.0) threw on every signed-in page in production.
+const wrapped = new WeakMap();
+export const realAssets = (assets) => wrapped.get(assets) || assets;
+export const markWrapped = (view, real) => { wrapped.set(view, real); };
+export const isWrapped = (assets) => wrapped.has(assets);
+
 // Per isolate. A version never changes once written, so caching by id is safe;
 // only the pointer is read on every request. The build's version is cached per
 // assets binding (one deploy, one build).
@@ -45,7 +55,7 @@ const builds = new WeakMap();
 
 async function fromBuild(env, request) {
   // The real binding, also when a handler holds the viewer's (band.js viewEnv).
-  const assets = env.ASSETS?.real || env.ASSETS;
+  const assets = realAssets(env.ASSETS);
   if (!assets) return null;
   if (builds.has(assets)) return builds.get(assets);
   const r = await assets.fetch(new Request(new URL('/_build/version.json', request.url)));
