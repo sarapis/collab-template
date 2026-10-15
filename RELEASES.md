@@ -3,6 +3,24 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.2.1 — A fix: signed-in band pages threw in the Workers runtime
+
+**`worker/schema.sql` is unchanged. Take this if you run `site.layout: band`.**
+
+In v1.1.0 to v1.2.0, every page a SIGNED-IN person opened on a band-layout site
+threw (Cloudflare error 1101), and MCP and the assistant read the unfiltered
+binding. The code marked its own wrapper of `env.ASSETS` with a property and
+probed the binding for it (`env.ASSETS?.real`). In the Workers runtime a binding
+is an RPC stub, so asking it for any property it does not have returns a truthy
+stub that throws when used. The tests passed because their `ASSETS` was a plain
+object; a stranger never reached the code because a private site redirects them
+first.
+
+Fixed: the wrapper is recorded in a `WeakMap` and the binding is asked for
+nothing but `fetch`. The band and rows tests now use a runtime-shaped binding
+(`worker/test/fixture.js` `rpcBinding`): with the old code 39 of them go red.
+Checked under `wrangler dev` (workerd) on the path that failed in production.
+
 ## v1.2.0 — Sign in with the CMS
 
 **⚠️ `worker/schema.sql` changed:** one table added, `auth_tickets_used`
