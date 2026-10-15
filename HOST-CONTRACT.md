@@ -185,7 +185,8 @@ setting in v1.1.0; the others stand as written.
   an email address. It is on when its credentials exist (`enabled()`); the
   roster in D1 authorizes, never the provider. A new provider is added to the
   template under the same rule, so every instance can turn it on with
-  credentials and none has to fork `auth.js`.
+  credentials and none has to fork `auth.js`. Built in v1.2.0 as `worker/src/cms.js`
+  ("Sign in with the CMS").
 - **Private mode** (`PUBLIC_READ=false`, `auth.read: private`): the default in
   the sample. Its invariants: one read rule, `canRead()`, used by pages, `/api/`
   and MCP; `PUBLIC_ASSETS` is exactly `/tokens.css`; `/llms.txt` is built only

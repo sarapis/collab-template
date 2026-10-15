@@ -154,7 +154,8 @@ the target must be private.
    `gate.foreign_resources`.
 4. Set the secrets with `wrangler secret put`: `ROOT_ADMIN` (the bootstrap
    admin), `SESSION_SECRET`, `SETTINGS_KEY`, and the provider and mail keys you
-   use. Apply `worker/schema.sql` to the D1 database.
+   use. A CMS on another domain can be a provider too: `CMS_PASS_SECRET` and
+   `CMS_URL` (RELEASES.md, v1.2.0). Apply `worker/schema.sql` to the D1 database.
 5. `npm run build && npm test`, then deploy (`npx wrangler deploy`, or set the
    `CLOUDFLARE_API_TOKEN` repository secret and let CI deploy on merge).
 

@@ -25,6 +25,8 @@ export const ROUTES = [
   { method: 'GET',   path: '/auth/google/callback' },
   { method: 'GET',   path: '/auth/github/start' },
   { method: 'GET',   path: '/auth/github/callback' },
+  { method: 'GET',   path: '/auth/cms/start' },
+  { method: 'GET',   path: '/auth/cms/callback' },
   { method: 'POST',  path: '/auth/email/start' },
   { method: 'GET',   path: '/auth/email/verify' },
   // The OAuth front door for claude.ai and mobile. /mcp keeps its bearer
