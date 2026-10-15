@@ -1,0 +1,106 @@
+/* The band layout (`site.layout: band`; worker/src/render.js).
+   Loaded after site.css and only by band pages. Every colour is a design token
+   (design/tokens.css): an instance themes this by changing its tokens, never
+   this file. The band and the Tools box take the sidebar's tokens, so a theme
+   written for the classic layout already themes this one. */
+
+.band-layout .band { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+  gap: .8rem 2rem; padding: 1rem 1.25rem .9rem; background: var(--sidebar);
+  border-bottom: 1px solid var(--sidebar-border); font-family: var(--font-sans); }
+.band-inner { min-width: 0; flex: 1 1 32rem; }
+.crumbs { font-size: .8rem; color: var(--muted-foreground); display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
+.crumbs a { color: var(--muted-foreground); text-decoration: none; }
+.crumbs a:hover { color: var(--primary); text-decoration: underline; }
+.crumbs [aria-current="page"] { color: var(--foreground); }
+.crumb-sep { color: var(--border); }
+.band-name { margin: .25rem 0 .7rem; font-family: var(--font-serif); font-weight: 600; font-size: 1.6rem; line-height: 1.15; letter-spacing: -.01em; }
+.band-name a { color: var(--foreground); text-decoration: none; }
+.pills { display: flex; flex-wrap: wrap; gap: .35rem; }
+.pill { font-size: .84rem; text-decoration: none; color: var(--muted-foreground); padding: .25rem .75rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--card); }
+.pill:hover { border-color: var(--ring); color: var(--foreground); }
+.pill[aria-current="page"] { background: var(--accent); color: var(--accent-foreground); border-color: var(--ring); font-weight: 600; }
+.band-account { flex: 0 0 auto; display: flex; flex-direction: column; gap: .15rem; min-width: 10rem; }
+
+/* Tools, content and the rail. The rail is the classic layout's own, so its
+   contents and comments behave as they always have. */
+.band-shell { display: grid; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 64rem) {
+  .band-shell { grid-template-columns: auto minmax(0, 1fr) 17rem; gap: 2.5rem; max-width: 90rem; margin: 0 auto; padding-right: 1.5rem; }
+  :root[data-rail="closed"] .band-shell { grid-template-columns: auto minmax(0, 1fr); }
+}
+
+/* ⚠️ A checkbox, not a script: the Tools box opens and closes with no
+   JavaScript, for this page only (Databook decision 28). It starts as
+   `project.tools` says. */
+.tools-check { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.tools { font-family: var(--font-sans); background: var(--sidebar); border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius); margin: 1rem; padding: .5rem; align-self: start; }
+@media (min-width: 64rem) { .tools { margin: 2.5rem 0 0 1.25rem; position: sticky; top: 1rem; } }
+.tools-toggle { display: block; cursor: pointer; font-size: .7rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--muted-foreground); padding: .15rem .35rem .4rem; }
+.tools-toggle::after { content: " \25b8"; }
+.tools-check:checked ~ .tools .tools-toggle::after { content: " \25be"; }
+.tools-check:focus-visible ~ .tools .tools-toggle { outline: 2px solid var(--ring); outline-offset: 2px; }
+.tools-list { margin-top: 0; }
+.tools-list .menu-head { margin: .7rem .35rem .2rem; }
+.tool { display: flex; align-items: center; gap: .55rem; white-space: nowrap; }
+.tool-icon { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; }
+/* Closed: icons only, names on hover through the link's title. */
+.tools-check:not(:checked) ~ .tools .tool-label { display: none; }
+.tools-check:not(:checked) ~ .tools .tools-head { display: none; }
+.tools-check:not(:checked) ~ .tools .tools-toggle::before { content: "\2630"; font-size: .95rem; }
+@media (max-width: 63.99rem) {
+  .tools-list { flex-direction: row; flex-wrap: wrap; }
+  .tools-check:checked ~ .tools .tools-list { flex-direction: column; }
+}
+
+main .status-banner { max-width: var(--measure); font-family: var(--font-sans); font-size: .9rem; padding: .7rem .9rem;
+  border-radius: var(--radius); margin: 0 0 1.4rem; border-left: 3px solid var(--warning-line); background: var(--warning); }
+main .status-banner.members { border-left-color: var(--primary); background: var(--accent); color: var(--accent-foreground); }
+main .status-banner.archived { border-left-color: var(--muted-foreground); background: var(--muted); }
+main .status-banner.draft { border-left-color: var(--warning-line); background: var(--warning); }
+
+.rail-section { margin-bottom: 1.1rem; }
+.rail-section .menu-head { margin-top: 0; }
+.rail-docs { list-style: none; margin: 0; padding: 0; }
+.rail-docs li { margin: .25rem 0; }
+.rail-docs a { color: var(--muted-foreground); text-decoration: none; }
+.rail-docs a:hover { color: var(--primary); }
+.rail-docs a[aria-current="page"] { color: var(--foreground); font-weight: 600; }
+
+.version-foot { font-family: var(--font-sans); font-size: .78rem; color: var(--muted-foreground);
+  border-top: 1px solid var(--border); padding: 1rem 1.25rem 5rem; }
+.version-foot a { color: var(--muted-foreground); }
+.version-foot code { font-family: var(--font-mono); }
+
+.home-cards { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); margin: 1.4rem 0; }
+main > .home-cards { max-width: 100%; }
+.home-card { display: flex; flex-direction: column; gap: .15rem; text-decoration: none; color: inherit; }
+.home-card:hover { border-color: var(--ring); }
+.home-kicker { font-family: var(--font-sans); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
+.home-figure { font-family: var(--font-serif); font-size: 2rem; line-height: 1.1; color: var(--primary); font-variant-numeric: tabular-nums; }
+.home-latest { font-family: var(--font-serif); font-size: 1.05rem; color: var(--foreground); }
+.activity-item { margin-top: 1.2rem; }
+.filters a.filter { text-decoration: none; }
+
+/* The content editor (/admin/content/; content.source: rows). */
+.editor { display: grid; gap: 1rem; }
+main > .editor { max-width: 100%; }
+.editor textarea { width: 100%; min-height: 24rem; font-family: var(--font-mono); font-size: .85rem; line-height: 1.5;
+  border: 1px solid var(--input); border-radius: var(--radius); padding: .7rem; background: var(--background); color: var(--foreground); }
+.editor-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.editor-bar select, .editor-bar input { font: inherit; font-family: var(--font-sans); font-size: .85rem; padding: .3rem .5rem;
+  border: 1px solid var(--input); border-radius: var(--radius); background: var(--background); color: var(--foreground); }
+.editor-errors { font-family: var(--font-sans); font-size: .85rem; color: var(--destructive); white-space: pre-wrap; }
+.editor-preview { width: 100%; min-height: 32rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); }
+.editor-list { font-family: var(--font-sans); font-size: .88rem; }
+.editor-list button { font: inherit; background: none; border: 0; color: var(--primary); cursor: pointer; padding: 0; text-align: left; }
+.editor-list button:hover { text-decoration: underline; }
+
+/* The rail's switch is fixed to the top right in the classic layout, which is
+   where the band keeps the account. Here it sits at the top of the rail's
+   column, under the band, clear of the account and the footer. */
+.band-shell { position: relative; }
+.band-layout .rail-switch { position: absolute; top: .7rem; right: 1.25rem; }

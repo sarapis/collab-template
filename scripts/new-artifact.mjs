@@ -28,6 +28,12 @@ const existing = fs.readdirSync('content').filter((f) => f.endsWith('.md'))
 const nav = (existing.length ? Math.max(...existing) : 0) + 10;
 
 const config = yaml.load(fs.readFileSync('site.config.yml', 'utf8')) || {};
+// ⚠️ On a rows site (content.source: rows) content/ is only the seed the site
+// was first imported from; a file written here never reaches the site.
+if (config.content?.source === 'rows') {
+  console.error('This site\'s content is edited on the site (content.source: rows): use /admin/content/, "New document".');
+  process.exit(1);
+}
 const audience = Object.keys(config.audiences || {})[0] || 'someone';
 const round = Object.keys(config.asked_rounds || {}).find((r) => config.asked_rounds[r].new)
   || Object.keys(config.asked_rounds || {})[0] || 'r1';

@@ -1,0 +1,242 @@
+{
+  "project": {
+    "id": "sample",
+    "name": "Sample Project",
+    "tagline": "A worked example of a collaboration site, to fork and replace."
+  },
+  "audiences": {
+    "team": {
+      "name": "The project team",
+      "describes": "The people doing the work."
+    },
+    "reviewers": {
+      "name": "Reviewers",
+      "describes": "People asked to check the work before it goes out."
+    }
+  },
+  "asked_rounds": {
+    "r1": {
+      "label": "The first questions, written with the sample documents",
+      "new": true,
+      "opened": "2026-10-01T00:00:00.000Z"
+    }
+  },
+  "docs": [
+    {
+      "slug": "start",
+      "title": "Sample Project",
+      "nav": 0,
+      "nav_id": "start",
+      "type": "doc",
+      "menu": "project",
+      "partial": false,
+      "date": null,
+      "author": null,
+      "source": "README.md",
+      "headings": [
+        {
+          "level": 1,
+          "id": "start-here",
+          "text": "Start here",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "what-the-site-is-for",
+          "text": "What the site is for",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "two-kinds-of-collaborator",
+          "text": "Two kinds of collaborator",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "how-to-take-part",
+          "text": "How to take part",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "getting-started-in-the-order-it-actually-happens",
+          "text": "Getting started, in the order it actually happens",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "what-the-words-mean-here",
+          "text": "What the words mean here",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "editing",
+          "text": "Editing",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "running-it",
+          "text": "Running it",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "for-an-ai-assistant",
+          "text": "For an AI assistant",
+          "explicit": false
+        }
+      ]
+    },
+    {
+      "slug": "plan",
+      "title": "The plan",
+      "nav": 10,
+      "nav_id": "plan",
+      "type": "doc",
+      "menu": null,
+      "partial": false,
+      "date": null,
+      "author": null,
+      "source": "plan.md",
+      "headings": [
+        {
+          "level": 1,
+          "id": "the-plan",
+          "text": "The plan",
+          "explicit": false
+        },
+        {
+          "level": 2,
+          "id": "making",
+          "text": "What we are making",
+          "explicit": true
+        },
+        {
+          "level": 2,
+          "id": "measure",
+          "text": "How we will know it worked",
+          "explicit": true
+        }
+      ]
+    },
+    {
+      "slug": "summary",
+      "title": "Summary prose",
+      "nav": 100,
+      "nav_id": "summary",
+      "type": "doc",
+      "menu": null,
+      "partial": true,
+      "date": null,
+      "author": null,
+      "source": "summary.md",
+      "headings": []
+    },
+    {
+      "slug": "activity/2026-10-01-started",
+      "title": "The sample project started",
+      "nav": 1000,
+      "nav_id": "activity/2026-10-01-started",
+      "type": "post",
+      "menu": null,
+      "partial": false,
+      "date": "2026-10-01",
+      "author": "Claude",
+      "source": "activity/2026-10-01-started.md",
+      "headings": [
+        {
+          "level": 2,
+          "id": "started",
+          "text": "The sample project started",
+          "explicit": true
+        }
+      ]
+    },
+    {
+      "slug": "decisions/2026-10-01-one-site",
+      "title": "One site for the documents and their questions",
+      "nav": 2000,
+      "nav_id": "decisions/2026-10-01-one-site",
+      "type": "decision",
+      "menu": null,
+      "partial": false,
+      "date": "2026-10-01",
+      "author": null,
+      "source": "decisions/2026-10-01-one-site.md",
+      "headings": [
+        {
+          "level": 2,
+          "id": "one-site",
+          "text": "One site for the documents and their questions",
+          "explicit": true
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "sample:first-audience",
+      "slug": "first-audience",
+      "number": 1,
+      "audience": "team",
+      "group": "scope",
+      "asked": "r1",
+      "margin": true,
+      "resolved": null,
+      "hidden": false,
+      "doc": "plan",
+      "section": "making",
+      "section_title": "What we are making",
+      "see": [],
+      "body": "<p>Who is the first reader this site has to serve: the team itself, or people\noutside it who will be pointed at a page?</p>",
+      "why": "the answer decides whether reading stays private or opens up."
+    },
+    {
+      "id": "sample:success-measure",
+      "slug": "success-measure",
+      "number": 2,
+      "audience": "reviewers",
+      "group": "scope",
+      "asked": "r1",
+      "margin": false,
+      "resolved": null,
+      "hidden": false,
+      "doc": "plan",
+      "section": "measure",
+      "section_title": "How we will know it worked",
+      "see": [
+        {
+          "kind": "section",
+          "doc": "plan",
+          "section": "measure",
+          "title": "How we will know it worked"
+        }
+      ],
+      "body": "<p>What one observation, three months in, would tell us the site is being used\nrather than merely kept?</p>",
+      "why": "without it, &quot;it works&quot; is whatever the person asked decides."
+    }
+  ],
+  "quotes": [],
+  "figures": [
+    {
+      "doc": "summary",
+      "key": "counts.questions",
+      "text": "2"
+    },
+    {
+      "doc": "summary",
+      "key": "counts.open",
+      "text": "2"
+    }
+  ],
+  "counts": {
+    "documents": 5,
+    "questions": 2,
+    "visible": 2,
+    "resolved": 0,
+    "open": 2
+  }
+}

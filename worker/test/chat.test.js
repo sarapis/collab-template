@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import worker from '../src/index.js';
 import { enforceRetention } from '../src/chat.js';
+import { CLASSIC } from './classic.js';
 
 const MANIFEST = fs.readFileSync('build/manifest.json', 'utf8');
 
@@ -81,7 +82,7 @@ const USERS = [
 ];
 
 const env = (DB) => ({
-  DB, ASSETS: assets(), AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
+  DB, ASSETS: assets(), COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
   CHAT_ENABLED: 'true', CHAT_RETENTION_DAYS: '90', GEMINI_API_KEY: 'g-test', CHAT_MODEL: 'gemini-3.5-flash-lite',
 });
 

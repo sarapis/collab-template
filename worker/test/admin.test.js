@@ -65,7 +65,7 @@ const PEOPLE = [
 ];
 
 const env = (DB, extra = {}) => ({
-  DB, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
+  DB, COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
   ROOT_ADMIN: 'devin@example.org', ...extra,
 });
 
@@ -221,6 +221,7 @@ test('a clean store reports nothing at all', async () => {
 // D1, encrypted, and that the screen is write-only.
 
 import { secretValue, listSecrets } from '../src/secrets.js';
+import { CLASSIC } from './classic.js';
 
 const KEYED = (DB) => env(DB, { SETTINGS_KEY: 'k'.repeat(48) });
 const put = (who, name, value) => as(who, `/api/admin/secrets/${name}`, 'PUT', { value });

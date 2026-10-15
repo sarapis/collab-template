@@ -1,0 +1,27 @@
+# The Worker tests' own project (worker/test/fixture.js).
+#
+# ⚠️ A copy of the template's sample, kept HERE so the band and rows tests do
+# not depend on an instance's content: every fork runs these tests, and a fork
+# has replaced the sample. Template-owned and pinned like the tests themselves.
+project:
+  id: sample
+  name: Sample Project
+  tagline: A worked example of a collaboration site, to fork and replace.
+auth:
+  read: private
+audiences:
+  team:
+    name: The project team
+    describes: "The people doing the work."
+  reviewers:
+    name: Reviewers
+    describes: "People asked to check the work before it goes out."
+asked_rounds:
+  r1:
+    label: "The first questions, written with the sample documents"
+    new: true
+    opened: 2026-10-01
+references:
+  template:
+    url: https://github.com/sarapis/collab-template
+    label: the collab-template repository

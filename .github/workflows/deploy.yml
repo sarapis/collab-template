@@ -24,6 +24,11 @@ jobs:
       # checks the pin itself against sarapis/collab-template (TEMPLATE.md).
       - if: hashFiles('template.pin.json') != ''
         run: npm run template -- verify
+      # The template only: the whole gate again, on a band-layout, rows-content
+      # build of the sample (scripts/variant-check.mjs), so a check that assumes
+      # one layout cannot pass here and fail a fork that chose the other.
+      - if: github.repository == 'sarapis/collab-template'
+        run: npm run variant
 
   deploy:
     needs: check

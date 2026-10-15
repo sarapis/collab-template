@@ -10,6 +10,7 @@
 // a pull request a contributor opens after reading it, not as something a bot
 // wrote into a store nobody reviewed.
 
+import { viewEnv } from './band.js';
 import { flag } from './flag.js';
 import { secretValue } from './secrets.js';
 import { overLimit } from './limits.js';
@@ -119,6 +120,8 @@ async function bump(env, bucket, ttlSeconds) {
 }
 
 export async function handleChat(request, env, me) {
+  // The assistant reads what this person may read, and nothing else (band.js viewEnv).
+  env = viewEnv(request, env, me);
   if (!flag(env, 'CHAT_ENABLED')) return json({ error: 'The assistant is switched off for this project.' }, 503);
   // A chat turn spends money and writes a row, so by default it is a write,
   // and writes are roster-only. CHAT_PUBLIC opens it to anyone -- which is

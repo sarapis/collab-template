@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import worker from '../src/index.js';
 import { MAX_BODY, overLimit } from '../src/limits.js';
+import { CLASSIC } from './classic.js';
 
 const MANIFEST = fs.readFileSync('build/manifest.json', 'utf8');
 const M = JSON.parse(MANIFEST);
@@ -59,7 +60,7 @@ const USERS = [
 ];
 
 const env = (DB = db()) => ({
-  DB, ASSETS: assets(), AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
+  DB, ASSETS: assets(), COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
   CHAT_ENABLED: 'true', CHAT_RETENTION_DAYS: '90', GEMINI_API_KEY: 'g-test',
 });
 

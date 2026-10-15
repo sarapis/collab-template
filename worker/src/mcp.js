@@ -8,6 +8,7 @@
 // claude.ai and mobile need OAuth 2.1 + DCR on top of this. That front door is
 // already written in ctfg-directory/ops-mcp-worker; extract it, do not rebuild.
 
+import { viewEnv } from './band.js';
 import { flag } from './flag.js';
 import { canRead } from './identity.js';
 
@@ -134,6 +135,10 @@ async function call(name, args, env, request, me, handlers) {
 }
 
 export async function handleMcp(request, env, me, handlers) {
+  // ⚠️ Both doors (/mcp and /connect) arrive here, so this is where MCP reads
+  // through the viewer's path (band.js viewEnv): members-only content is gone
+  // before any tool sees the manifest.
+  env = viewEnv(request, env, me);
   try {
     return await dispatch(request, env, me, handlers);
   } catch (e) {

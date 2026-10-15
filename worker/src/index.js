@@ -10,6 +10,8 @@ import { flag } from './flag.js';
 import { overLimit } from './limits.js';
 import { handleChat, listSessions, readSession, enforceRetention } from './chat.js';
 import { handleAdmin } from './admin.js';
+import { handleContent } from './content.js';
+import { isBand, bandPage, wrapBuilt, viewEnv, viewFor, publicIndexFor, hostOf } from './band.js';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
@@ -24,7 +26,14 @@ async function readBody(request) {
 // --- handlers --------------------------------------------------------------
 
 async function getAnswers(request, env, me) {
-  const ids = (new URL(request.url).searchParams.get('q') || '').split(',').filter(Boolean);
+  let ids = (new URL(request.url).searchParams.get('q') || '').split(',').filter(Boolean);
+  // ⚠️ Band layout: only questions this viewer can see (a members-only
+  // document's questions are not theirs to read answers to).
+  if (isBand(env)) {
+    const v = await viewFor(request, env, me);
+    const visible = new Set((v?.view.manifest.questions || []).map((q) => q.id));
+    ids = ids.filter((x) => visible.has(x));
+  }
   if (!ids.length) return json({ answers: {} });
   const marks = ids.map(() => '?').join(',');
   const { results } = await env.DB.prepare(
@@ -78,9 +87,15 @@ async function patchAnswer(request, env, me, answerId) {
   return json({ id: answerId });
 }
 
-async function getComments(request, env) {
+async function getComments(request, env, me) {
   const p = new URL(request.url).searchParams;
-  return json({ comments: await readComments(env, p.get('doc'), p.get('since')) });
+  let comments = await readComments(env, p.get('doc'), p.get('since'));
+  if (isBand(env)) {
+    const v = await viewFor(request, env, me);
+    const docs = new Set((v?.view.manifest.docs || []).map((d) => d.slug));
+    comments = comments.filter((c) => !c.doc || docs.has(c.doc));
+  }
+  return json({ comments });
 }
 
 async function postComment(request, env, me) {
@@ -114,7 +129,9 @@ async function getNotifications(request, env, me) {
   const seen = await env.DB.prepare('SELECT last_seen_at FROM seen WHERE sub = ?').bind(me.sub).first();
   const since = seen?.last_seen_at || '1970-01-01T00:00:00.000Z';
 
-  const manifest = await env.ASSETS?.fetch(new Request(new URL('/manifest.json', request.url)))
+  // Through the viewer's read path (band.js viewEnv): in the band layout the
+  // manifest is the live version as this person may see it.
+  const manifest = await viewEnv(request, env, me).ASSETS?.fetch(new Request(new URL('/manifest.json', request.url)))
     .then((r) => (r.ok ? r.json() : null)).catch(() => null);
 
   const { results: answerRows } = await env.DB.prepare(
@@ -295,6 +312,12 @@ export const siteHandler = {
     // public by existing.
     if (url.pathname === '/llms.txt') {
       if (!PUBLIC_NOTICE) return new Response('Not found', { status: 404 });
+      // A public instance whose content is rows: the index is what an anonymous
+      // reader may see of the LIVE version, never the build's seed.
+      if (isBand(env) && hostOf(env).settings.content.source === 'rows' && flag(env, 'PUBLIC_READ')) {
+        const text = await publicIndexFor(request, env, ANON);
+        if (text) return new Response(text, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+      }
       return new Response(PUBLIC_NOTICE, { headers: { 'content-type': 'text/plain; charset=utf-8' } });
     }
 
@@ -331,6 +354,17 @@ export const siteHandler = {
         }
       }
 
+      // The band layout: the Worker renders the content's pages for this viewer
+      // and wraps the pages Eleventy built (band.js). `/` is Home there, not a
+      // router.
+      if (isBand(env)) {
+        if (!me) me = await identify(request, env).catch(() => ANON);
+        const rendered = await bandPage(request, env, me, url);
+        if (rendered) return rendered;
+        const built = env.ASSETS ? await env.ASSETS.fetch(request) : new Response('no assets bound', { status: 500 });
+        return wrapBuilt(built, request, env, me, url);
+      }
+
       // ⚠️ `/` is a router and not a page. The orientation page earns somebody's
       // attention exactly once; after that it is in the way, and the thing a
       // returning reader wants is where the project stands. The brand link on
@@ -362,6 +396,14 @@ export const siteHandler = {
     const m = request.method.toUpperCase();
     const p = url.pathname;
 
+    // ⚠️ The ONE route that answers a caller who is not on the roster: the
+    // nightly export Action, with its own read-only token (EXPORT_TOKEN). It is
+    // dispatched here only when a bearer is presented, and refuses any other;
+    // without one it meets the gate below like every other route.
+    if (p === '/api/content/export' && m === 'GET' && !me.authenticated && request.headers.get('authorization')) {
+      return handleContent(request, env, me, url);
+    }
+
     // ⚠️ DEFAULT CLOSED, and BEFORE the dispatch below rather than inside each
     // handler. Every route added underneath is gated without anybody having to
     // remember to gate it — which is the failure this replaces: the page branch
@@ -383,11 +425,12 @@ export const siteHandler = {
     if (p === '/api/answers' && m === 'GET') return getAnswers(request, env, me);
     if (p === '/api/answers' && m === 'POST') return postAnswer(request, env, me);
     if (p.startsWith('/api/answers/') && m === 'PATCH') return patchAnswer(request, env, me, p.split('/')[3]);
-    if (p === '/api/comments' && m === 'GET') return getComments(request, env);
+    if (p === '/api/comments' && m === 'GET') return getComments(request, env, me);
     if (p === '/api/comments' && m === 'POST') return postComment(request, env, me);
     if (p === '/api/notifications' && m === 'GET') return getNotifications(request, env, me);
     if (p === '/api/seen' && m === 'POST') return postSeen(request, env, me);
     if (p.startsWith('/api/admin/')) return handleAdmin(request, env, me, url);
+    if (p === '/api/version' || p.startsWith('/api/content') || p.startsWith('/api/versions')) return handleContent(request, env, me, url);
     if (p === '/api/chat' && m === 'POST') return handleChat(request, env, me);
     if (p === '/api/chat/sessions' && m === 'GET') return listSessions(env, me);
     if (p.startsWith('/api/chat/sessions/') && m === 'GET') return readSession(env, me, p.split('/')[4]);

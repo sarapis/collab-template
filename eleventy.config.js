@@ -7,24 +7,39 @@ import yaml from 'js-yaml';
 // property that lets GridMarket or Databook embed the loop without adopting
 // any of this.
 export default function (eleventyConfig) {
+  const config = yaml.load(fs.readFileSync('site.config.yml', 'utf8')) || {};
+  // ⚠️ `site.layout: band` (worker/src/settings.js): the Worker renders every
+  // page made from the content (documents, Home, About, Questions, Activity,
+  // Get involved) per viewer, from the live version, and wraps the pages built
+  // here in the same layout. So this build makes none of the first, and copies
+  // the version where the Worker reads it and never serves it.
+  const band = config.site?.layout === 'band';
   eleventyConfig.addPassthroughCopy({ 'widget/collab.js': 'collab.js' });
   eleventyConfig.addPassthroughCopy({ 'widget/collab.css': 'collab.css' });
   eleventyConfig.addPassthroughCopy({ 'design/tokens.css': 'tokens.css' });
-  // The manifest is served: the Worker reads it for the badge and the MCP
-  // tools, and an agent can fetch it directly. The markdown sources are served
-  // too, so read_document returns what a contributor would edit rather than
-  // HTML somebody has to un-render.
-  eleventyConfig.addPassthroughCopy({ 'build/manifest.json': 'manifest.json' });
-  // Each section's own HTML, so a question can show the passage it cites without
-  // sending the reader away from the answer box they were typing in.
-  eleventyConfig.addPassthroughCopy({ 'build/sections.json': 'sections.json' });
-  eleventyConfig.addPassthroughCopy({ 'content': 'source' });
+  // The content editor exists only where the content is rows.
+  if (config.content?.source === 'rows') eleventyConfig.addPassthroughCopy({ 'widget/content-editor.js': 'content-editor.js' });
+  else eleventyConfig.ignores.add('site/admin-content.njk');
+  if (band) {
+    eleventyConfig.addPassthroughCopy({ 'site/band.css': 'band.css' });
+    eleventyConfig.addPassthroughCopy({ 'build/version.json': '_build/version.json' });
+    for (const page of ['docs', 'summary', 'activity', 'decisions', 'questions']) eleventyConfig.ignores.add(`site/${page}.njk`);
+  } else {
+    // The manifest is served: the Worker reads it for the badge and the MCP
+    // tools, and an agent can fetch it directly. The markdown sources are served
+    // too, so read_document returns what a contributor would edit rather than
+    // HTML somebody has to un-render.
+    eleventyConfig.addPassthroughCopy({ 'build/manifest.json': 'manifest.json' });
+    // Each section's own HTML, so a question can show the passage it cites without
+    // sending the reader away from the answer box they were typing in.
+    eleventyConfig.addPassthroughCopy({ 'build/sections.json': 'sections.json' });
+    eleventyConfig.addPassthroughCopy({ 'content': 'source' });
+  }
   eleventyConfig.addPassthroughCopy({ 'site/site.css': 'site.css' });
   // ⚠️ Self-contained pages an instance serves as-is (`site.passthrough` in
   // site.config.yml: a list of {from, to}). Each is an artifact rather than a
   // document: nothing compiles it, the sidebar is not on it, and the gate
   // excludes it by name from the checks that assume this site's layout.
-  const config = yaml.load(fs.readFileSync('site.config.yml', 'utf8')) || {};
   for (const { from, to } of config.site?.passthrough || []) {
     eleventyConfig.addPassthroughCopy({ [from]: to });
   }
@@ -50,6 +65,8 @@ export default function (eleventyConfig) {
 
   eleventyConfig.addTransform('contents', function (content) {
     if (!this.page.outputPath?.endsWith('.html')) return content;
+    // A band page is wrapped (and its contents list made) by the Worker.
+    if (content.startsWith('<!--collab:band ')) return content;
     const main = (content.split('<main>')[1] || '').split('</main>')[0];
     const items = [...main.matchAll(/<h([23])\s[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/h[23]>/g)]
       .map(([, level, id, text]) => `<li class="l${level}"><a href="#${id}">${text.replace(/<[^>]+>/g, '').trim()}</a></li>`);

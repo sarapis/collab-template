@@ -58,6 +58,8 @@
   //   AGENT_TOKENS    {"they@example.org":"sha256:<64 hex>"}
   //   RESEND_API_KEY  sends the mail
   //   GEMINI_API_KEY  the assistant
+  //   EXPORT_TOKEN    content.source: rows only. 32+ characters; the nightly
+  //                   export Action reads /api/content/export with it
 
   "triggers": { "crons": ["17 4 * * *"] },
 

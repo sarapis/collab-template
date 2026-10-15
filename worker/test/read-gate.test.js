@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
 import { ROUTES } from '../src/routes.js';
+import { CLASSIC } from './classic.js';
 
 // Whether a caller may READ, checked at the HTTP door, for every GET route the
 // table declares.
@@ -48,7 +49,7 @@ const withUsers = () => ({
 
 const env = (DB, publicRead) => ({
   DB, ASSETS: { fetch: async () => new Response('{}', { status: 200 }) },
-  AGENT_TOKENS: '{}', PUBLIC_READ: publicRead ? 'true' : 'false', DEV_SIGN_IN: 'true',
+  COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: publicRead ? 'true' : 'false', DEV_SIGN_IN: 'true',
 });
 
 const get = (path, who) => new Request('https://x' + path, {
@@ -94,7 +95,10 @@ for (const path of READ_ROUTES) {
   // correct and indistinguishable from the read gate firing. Excluding them
   // here costs nothing — the three assertions above still cover them, and the
   // private-instance ones are the reason this file exists.
-  if (!path.startsWith('/api/admin/')) {
+  // The content editor's routes (content.source: rows) are editors-only for the
+  // same reason, and covered as such in rows.test.js.
+  const EDITORS_ONLY = path.startsWith('/api/admin/') || path.startsWith('/api/content') || path.startsWith('/api/versions');
+  if (!EDITORS_ONLY) {
     test(`public instance: anonymous GET ${path} is not refused by the read gate`, async () => {
       // The sibling instance is public on purpose. This gate must not break it;
       // a route may still refuse for its OWN reason (contributor-only), so the

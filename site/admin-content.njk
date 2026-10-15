@@ -1,0 +1,64 @@
+---
+layout: base.njk
+title: Content
+permalink: /admin/content/
+---
+{# Built only when content.source is rows (eleventy.config.js). The editing is
+   widget/content-editor.js; every rule it relies on is the server's
+   (worker/src/content.js), so this page is a convenience, not the gate. #}
+<h1>Content</h1>
+<p class="lede">The documents, About and their questions, as this site stores
+them. A save rebuilds the site and makes the new version live; a save that does
+not compile changes nothing and says why.</p>
+
+<div id="content-editor" class="editor" hidden>
+  <section>
+    <h2 id="items">Items</h2>
+    <p class="counts" id="content-live"></p>
+    <table class="people editor-list"><thead>
+      <tr><th>Item</th><th>Status</th><th>Revision</th><th>Saved</th></tr>
+    </thead><tbody id="content-rows"></tbody></table>
+    <div class="editor-bar">
+      <input id="content-new-path" placeholder="content/new-document.md" aria-label="Path of a new document">
+      <button class="btn small" type="button" id="content-new">New document</button>
+      <button class="btn small" type="button" id="content-import" hidden>Import from the deployed build</button>
+    </div>
+  </section>
+
+  <section id="content-edit" hidden>
+    <h2 id="edit">Editing <code id="content-path"></code></h2>
+    <div class="editor-bar">
+      <label for="content-status">Status</label>
+      <select id="content-status">
+        <option value="published">Published</option>
+        <option value="members">Members only</option>
+        <option value="draft">Draft</option>
+        <option value="archived">Archived</option>
+      </select>
+      <input id="content-note" placeholder="What changed (kept with the revision)" aria-label="Note">
+    </div>
+    <textarea id="content-body" spellcheck="true" aria-label="Markdown"></textarea>
+    <div class="editor-bar">
+      <button class="btn" type="button" id="content-save">Save and publish</button>
+      <button class="btn small" type="button" id="content-preview">Preview</button>
+      <span class="counts" id="content-saved"></span>
+    </div>
+    <p class="editor-errors" id="content-errors"></p>
+    {# ⚠️ sandboxed: the preview is the site's own HTML, and an editor's markdown
+     may carry raw HTML. No allow-scripts, so none of it runs; allow-same-origin
+     only so the frame's stylesheets load with the session on a private site. #}
+    <iframe class="editor-preview" id="content-frame" title="Preview" sandbox="allow-same-origin" hidden></iframe>
+    <h3 id="revisions">Revisions</h3>
+    <ul class="editor-list" id="content-revisions"></ul>
+  </section>
+
+  <section>
+    <h2 id="versions">Versions</h2>
+    <p class="counts">Each save is a version. Making an earlier one live is a
+      rollback: the rows are untouched, and the next save builds from them.</p>
+    <ul class="editor-list" id="content-versions"></ul>
+  </section>
+</div>
+
+<p class="muted" id="content-denied" hidden>This page is for editors: admins and contributors.</p>
+<script src="/content-editor.js" defer></script>

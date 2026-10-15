@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { makeAuthorizeHandler, oauthMcpHandler } from '../src/oauth.js';
 import { issue } from '../src/session.js';
 import { handleMcp } from '../src/mcp.js';
+import { CLASSIC } from './classic.js';
 
 // ⚠️ entry.js is not imported here: it pulls in the OAuth provider package,
 // which imports `cloudflare:workers` and cannot load in Node. What is testable
@@ -26,7 +27,7 @@ function env(extra = {}) {
       run: async () => ({}), all: async () => ({ results: [] }),
       first: async () => (/FROM users WHERE email/.test(sql) ? list.find((u) => u.email === a[0]) || null : null),
     }) }), batch: async () => {} },
-    AGENT_TOKENS: '{}', SESSION_SECRET: 'test-secret', PUBLIC_READ: 'false',
+    COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', SESSION_SECRET: 'test-secret', PUBLIC_READ: 'false',
     OAUTH_PROVIDER: {
       parseAuthRequest: async () => ({ clientId: 'Claude', scope: ['collab'] }),
       completeAuthorization: async ({ userId, props }) => {

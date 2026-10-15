@@ -6,3 +6,25 @@ export const PROJECT = {
   "name": "Sample Project",
   "tagline": "A worked example of a collaboration site, to fork and replace."
 };
+
+export const HOST = {
+  "settings": {
+    "layout": "classic",
+    "content": {
+      "source": "git",
+      "export": null
+    }
+  },
+  "nav_artifacts": [],
+  "chat": {
+    "enabled": true,
+    "retention_days": 90
+  },
+  "public": {
+    "repo": "https://github.com/sarapis/collab-template",
+    "contact": "the project team",
+    "llms_txt": true
+  }
+};
+
+export const CONFIG_TEXT = null;
