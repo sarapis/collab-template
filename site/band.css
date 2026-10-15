@@ -98,3 +98,9 @@ main > .editor { max-width: 100%; }
 .editor-list { font-family: var(--font-sans); font-size: .88rem; }
 .editor-list button { font: inherit; background: none; border: 0; color: var(--primary); cursor: pointer; padding: 0; text-align: left; }
 .editor-list button:hover { text-decoration: underline; }
+
+/* The rail's switch is fixed to the top right in the classic layout, which is
+   where the band keeps the account. Here it sits at the top of the rail's
+   column, under the band, clear of the account and the footer. */
+.band-shell { position: relative; }
+.band-layout .rail-switch { position: absolute; top: .7rem; right: 1.25rem; }
