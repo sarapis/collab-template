@@ -81,7 +81,9 @@ main .status-banner.draft { border-left-color: var(--warning-line); background: 
 .rail-docs a[aria-current="page"] { color: var(--foreground); font-weight: 600; }
 
 .version-foot { font-family: var(--font-sans); font-size: .78rem; color: var(--muted-foreground);
-  border-top: 1px solid var(--border); padding: 1rem 1.25rem 5rem; }
+  /* The room the floating Ask button needs is reserved on the page now
+     (widget/collab.css), not here: two reservations stacked on a phone. */
+  border-top: 1px solid var(--border); padding: 1rem 1.25rem; }
 .version-foot a { color: var(--muted-foreground); }
 .version-foot code { font-family: var(--font-mono); }
 

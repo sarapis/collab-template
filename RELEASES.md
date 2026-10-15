@@ -3,6 +3,33 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.7.0 — The page keeps room for the floating Ask button
+
+**`worker/schema.sql` is unchanged.** No setting changes. Every page that
+carries the assistant gets about 4.8rem of room at its foot; a site with
+`chat.enabled: false` is untouched.
+
+- The Ask button is `position: fixed`, so the page could end underneath it. On
+  a phone it did: at the foot of a document the pill sat on the last contents
+  link and, because a fixed element takes the taps as well as the space, that
+  link could not be followed at all — with nothing about the page looking
+  wrong. `body:has(.chat-open)` now reserves the dock's height plus its gap,
+  so the room is on the page and the button stays where a thumb expects it.
+- The band layout had its own version of this fix — 5rem of bottom padding on
+  `.version-foot` — which would have stacked with the new one on a phone. It is
+  removed: one reservation, in the widget the dock belongs to, in both layouts
+  and at every width.
+- `chatDockRoom` (`test/detectors.js`) checks the arithmetic rather than the
+  spelling: it reads `min-height` and `bottom` off `.chat-open` and
+  `padding-bottom` off the reservation, and fails when the room no longer
+  clears the button. The two halves live in different rules and neither reads
+  the other, so restyling the pill taller or trimming the padding would
+  otherwise put the overlap back with every test green. This is also why the
+  button now states its own `min-height` instead of leaving its height to the
+  padding and the font.
+
+Tests: 417 → 422, in both the default and the band+rows variant.
+
 ## v1.6.0 — A passthrough page cannot claim an address the site serves
 
 **`worker/schema.sql` is unchanged.** No setting changes; nothing an instance
