@@ -288,3 +288,39 @@ test('the export script writes the tree and passes its own round trip; a rollbac
     assert.match(problems[0], /rolled back from 2/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('pull mode: the target runs the export itself, and only the target the site names', async () => {
+  const { pullTarget, writeTree, roundTrip } = await import('../../scripts/content-export.mjs');
+  const { env } = await rowsSite();
+  const config = (pull) => `${env.COLLAB_CONFIG_TEXT}\nsite:\n  layout: band\ncontent:\n  source: rows\n  export:\n    repo: Example/Target\n    path: docs/collab\n${pull ? '    mode: pull\n' : ''}`;
+  const bundle = (await body(env, get('/api/content/export', ADMIN))).j;
+  const as = (pull) => ({ ...bundle, files: { ...bundle.files, 'site.config.yml': config(pull) } });
+
+  const ok = pullTarget(as(true), 'example/target');
+  assert.equal(ok.error, undefined);
+  assert.equal(ok.export.path, 'docs/collab');
+  assert.match(pullTarget(as(true), 'example/other').error, /exports to Example\/Target, and this is example\/other/);
+  assert.match(pullTarget(as(true), undefined).error, /GITHUB_REPOSITORY/);
+  assert.match(pullTarget(as(false), 'example/target').error, /not pull/, 'a push-mode site is not pulled');
+
+  // The tree a target writes passes the same round trip.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'collab-pull-'));
+  try {
+    writeTree(path.join(dir, ok.export.path), as(true));
+    assert.deepEqual(roundTrip(path.join(dir, ok.export.path), as(true)), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('pull mode: the instance’s own export workflow stands down; push mode still runs', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const script = path.resolve('scripts/content-export.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'collab-target-'));
+  const target = (mode) => {
+    fs.writeFileSync(path.join(dir, 'site.config.yml'), `project: { id: x }\nsite: { layout: band }\ncontent:\n  source: rows\n  export: { repo: o/r, path: docs/collab${mode ? `, mode: ${mode}` : ''} }\n`);
+    return execFileSync(process.execPath, [script, 'target'], { cwd: dir, encoding: 'utf8' });
+  };
+  try {
+    assert.equal(target('pull').trim(), 'enabled=false');
+    assert.match(target(null), /^enabled=true\nrepo=o\/r\npath=docs\/collab/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

@@ -47,5 +47,8 @@ test('settings that cannot work together are refused', () => {
 
 test('the export target is a setting with defaults', () => {
   const s = settingsFrom({ project: { id: 'ctfg' }, site: { layout: 'band' }, content: { source: 'rows', export: { repo: 'o/r', path: '/docs/collab/' } } });
-  assert.deepEqual(s.content.export, { repo: 'o/r', path: 'docs/collab', branch: 'main', push_branch: 'collab-export/ctfg' });
+  assert.deepEqual(s.content.export, { repo: 'o/r', path: 'docs/collab', branch: 'main', push_branch: 'collab-export/ctfg', mode: 'push' },
+    'push is the default: v1.1.0\u2019s behaviour');
+  assert.equal(settingsFrom({ site: { layout: 'band' }, content: { source: 'rows', export: { repo: 'o/r', mode: 'pull' } } }).content.export.mode, 'pull');
+  assert.match(settingsProblems({ site: { layout: 'band' }, content: { source: 'rows', export: { repo: 'o/r', mode: 'both' } } }).join(), /push or pull/);
 });

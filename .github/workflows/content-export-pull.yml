@@ -1,0 +1,105 @@
+name: content export (pull)
+
+# The nightly export of a rows site's content, run BY THE TARGET repository
+# (`content.export.mode: pull`, v1.3.0; TEMPLATE.md "Content as rows").
+#
+# ⚠️ No write key exists anywhere. The target calls this workflow from a
+# schedule of its own; it reads the site with the read-only EXPORT_TOKEN,
+# checks the round trip, and pushes ONE branch and opens a pull request with
+# the target's own GITHUB_TOKEN. Nothing merges itself.
+#
+# In the target repository (one file; see TEMPLATE.md for the full text):
+#
+#   on: { schedule: [{ cron: '45 6 * * *' }], workflow_dispatch: {} }
+#   permissions: { contents: write, pull-requests: write }
+#   jobs:
+#     export:
+#       uses: sarapis/collab-template/.github/workflows/content-export-pull.yml@vX.Y.Z
+#       with: { site_url: https://collab.example.org, template_ref: vX.Y.Z }
+#       secrets: { EXPORT_TOKEN: ${{ secrets.COLLAB_EXPORT_TOKEN }} }
+#
+# and in its settings: "Allow GitHub Actions to create and approve pull
+# requests". ⚠️ A pull request opened with GITHUB_TOKEN does not start the
+# target's own pull_request workflows; its checks run when it is merged.
+#
+# The site refuses an export to any repository but the one its own
+# site.config.yml names (scripts/content-export.mjs pullTarget).
+on:
+  workflow_call:
+    inputs:
+      site_url:
+        description: The collaboration site, e.g. https://collab.example.org
+        required: true
+        type: string
+      template_ref:
+        description: The collab-template version the site runs, e.g. v1.3.0 (the same tag as the `uses:` line)
+        required: true
+        type: string
+    secrets:
+      EXPORT_TOKEN:
+        description: The site's EXPORT_TOKEN (read-only)
+        required: true
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: collab-content-export
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: target
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: sarapis/collab-template
+          ref: ${{ inputs.template_ref }}
+          path: collab-template
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - working-directory: collab-template
+        run: npm ci --omit=dev --ignore-scripts
+      - id: pull
+        # Written beside the target, not in it, so the branch can be cut from the
+        # target's base before the files land.
+        run: mkdir export && cd export && node ../collab-template/scripts/content-export.mjs pull --out=.
+        env:
+          COLLAB_URL: ${{ inputs.site_url }}
+          EXPORT_TOKEN: ${{ secrets.EXPORT_TOKEN }}
+      - working-directory: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPORT_PATH: ${{ steps.pull.outputs.path }}
+          BASE: ${{ steps.pull.outputs.branch }}
+          PUSH_BRANCH: ${{ steps.pull.outputs.push_branch }}
+          PROJECT: ${{ steps.pull.outputs.project }}
+          VERSION: ${{ steps.pull.outputs.version }}
+          DIGEST: ${{ steps.pull.outputs.digest }}
+          SITE: ${{ inputs.site_url }}
+        run: |
+          git config user.name "collab content export"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$PUSH_BRANCH" "origin/$BASE"
+          rm -rf "$EXPORT_PATH" && mkdir -p "$EXPORT_PATH"
+          cp -R "../export/$EXPORT_PATH/." "$EXPORT_PATH/"
+          git add -A -- "$EXPORT_PATH"
+          if git diff --cached --quiet; then
+            echo "No change from $BASE: nothing to export."
+            exit 0
+          fi
+          git commit -q -m "Export $PROJECT content: version $VERSION" -m "Digest $DIGEST, checked by the round trip before this commit."
+          # Regenerated from the base every night, so replaced, not appended to.
+          git push --force origin "$PUSH_BRANCH"
+          if [ "$(gh pr list --head "$PUSH_BRANCH" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --base "$BASE" --head "$PUSH_BRANCH" \
+              --title "Collaboration site content export ($PROJECT)" \
+              --body "The nightly export of $SITE into $EXPORT_PATH/. Generated: the round trip (this tree compiles to the digest the live site serves) passed before it was pushed. Edit the content on the site, not here; the next export replaces this folder."
+          else
+            echo "The export pull request is open; this push updated it."
+          fi

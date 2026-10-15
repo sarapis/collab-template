@@ -124,6 +124,37 @@ the target's base branch. A rollback shows as a failed round trip that says so.
 Set the repository variable `COLLAB_URL`. ⚠️ Members-only text is in the export:
 the target must be private.
 
+**Pull mode** (`content.export.mode: pull`, v1.3.0) is the safer choice when the
+target's base branch cannot be protected, or when a push to it deploys
+something: no write key exists at all. This repository's export workflow stands
+down, and the TARGET runs the export on its own schedule with its own
+`GITHUB_TOKEN`, through the template's reusable workflow, which refuses unless
+the site's settings name that repository:
+
+```yaml
+# .github/workflows/collab-export.yml in the TARGET repository
+name: collab content export
+on:
+  schedule: [{ cron: '45 6 * * *' }]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  export:
+    uses: sarapis/collab-template/.github/workflows/content-export-pull.yml@v1.3.0
+    with:
+      site_url: https://collab.example.org
+      template_ref: v1.3.0
+    secrets:
+      EXPORT_TOKEN: ${{ secrets.COLLAB_EXPORT_TOKEN }}
+```
+
+The target needs the secret `COLLAB_EXPORT_TOKEN` (the Worker's `EXPORT_TOKEN`)
+and the setting "Allow GitHub Actions to create and approve pull requests". A
+pull request opened this way does not start the target's own pull_request
+checks; they run when it is merged.
+
 ## Override points
 
 - **`instance/figures.mjs`**: where `npm run figures` reads measured numbers

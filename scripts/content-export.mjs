@@ -4,9 +4,15 @@
 //
 //   node scripts/content-export.mjs target   print the target (from site.config.yml) for the workflow
 //   node scripts/content-export.mjs write --out=DIR [--url=URL]
-//        fetch the rows from the live site, write them under DIR/<content.export.path>,
-//        and refuse unless the tree written there compiles to the digest the site
-//        is serving (the round trip, HOST-CONTRACT.md "Digest").
+//        PUSH mode, run in the instance's repository: fetch the rows from the live
+//        site, write them under DIR/<content.export.path>, and refuse unless the tree
+//        written there compiles to the digest the site is serving (the round trip,
+//        HOST-CONTRACT.md "Digest").
+//   node scripts/content-export.mjs pull --out=DIR [--url=URL]
+//        PULL mode (content.export.mode: pull, v1.3.0), run in the TARGET repository
+//        by .github/workflows/content-export-pull.yml: the same, with the settings
+//        read from the site.config.yml the site exports, and refused unless this
+//        repository is the one those settings name.
 //
 // The site is asked with EXPORT_TOKEN (the Worker's read-only export door); the
 // URL is --url or COLLAB_URL. ⚠️ This script never holds a git credential and
@@ -26,7 +32,9 @@ import { settingsFrom } from '../worker/src/settings.js';
 
 const [cmd, ...rest] = process.argv.slice(2);
 const opt = (k) => rest.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3);
-const config = yaml.load(fs.readFileSync('site.config.yml', 'utf8')) || {};
+// In pull mode this runs in the TARGET's checkout, which has no site.config.yml:
+// the settings come from the one the site exports (pull()).
+const config = fs.existsSync('site.config.yml') ? (yaml.load(fs.readFileSync('site.config.yml', 'utf8')) || {}) : {};
 const settings = settingsFrom(config);
 const die = (msg) => { console.error(`content-export: ${msg}`); process.exit(1); };
 
@@ -76,23 +84,45 @@ export function roundTrip(root, bundle) {
   return out;
 }
 
+async function fetchBundle(url, token) {
+  if (!url) die('no site URL: pass --url= or set COLLAB_URL');
+  if (!token) die('EXPORT_TOKEN is not set');
+  let r;
+  try { r = await fetch(`${url}/api/content/export`, { headers: { authorization: `Bearer ${token}` } }); }
+  catch (e) { die(`${url} could not be reached: ${e.cause?.message || e.message}`); }
+  if (!r.ok) die(`${url}/api/content/export answered ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  const bundle = await r.json();
+  if (!bundle.ok) die(`the site cannot export: ${(bundle.errors || []).join('; ')}`);
+  return bundle;
+}
+
+// Where a pulled bundle goes, from ITS OWN settings, or the reason it must not
+// be written here. ⚠️ `repository` is where this runs (GITHUB_REPOSITORY): a
+// site whose settings name another repository is refused, so a copied workflow
+// or a mistyped URL cannot write one project's content into another's repo.
+export function pullTarget(bundle, repository) {
+  const cfg = yaml.load(bundle?.files?.['site.config.yml'] || '') || {};
+  const s = settingsFrom(cfg);
+  const ex = s.content.export;
+  if (s.content.source !== 'rows' || !ex) return { error: 'the site exports no content.export settings' };
+  if (ex.mode !== 'pull') return { error: `the site's content.export.mode is ${ex.mode}, not pull: its own repository pushes this export` };
+  if (!repository) return { error: 'GITHUB_REPOSITORY is not set, so this cannot check it is the target' };
+  if (ex.repo.toLowerCase() !== String(repository).toLowerCase()) return { error: `the site exports to ${ex.repo}, and this is ${repository}` };
+  return { export: ex, project: cfg.project?.id || 'project' };
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const ex = settings.content.export;
   if (cmd === 'target') {
     // For the workflow: key=value lines it appends to $GITHUB_OUTPUT.
-    if (settings.content.source !== 'rows' || !ex) { console.log('enabled=false'); process.exit(0); }
+    // ⚠️ Pull mode: the target repository runs the export itself, with its own
+    // token; this repository holds no credential for it and does nothing.
+    if (settings.content.source !== 'rows' || !ex || ex.mode === 'pull') { console.log('enabled=false'); process.exit(0); }
     console.log(['enabled=true', `repo=${ex.repo}`, `path=${ex.path}`, `branch=${ex.branch}`, `push_branch=${ex.push_branch}`,
       `project=${config.project?.id || 'project'}`].join('\n'));
   } else if (cmd === 'write') {
     if (!ex) die('content.export is not set in site.config.yml');
-    const url = (opt('url') || process.env.COLLAB_URL || '').replace(/\/+$/, '');
-    const token = String(process.env.EXPORT_TOKEN || '').trim();
-    if (!url) die('no site URL: pass --url= or set COLLAB_URL');
-    if (!token) die('EXPORT_TOKEN is not set');
-    const r = await fetch(`${url}/api/content/export`, { headers: { authorization: `Bearer ${token}` } });
-    if (!r.ok) die(`${url}/api/content/export answered ${r.status}: ${(await r.text()).slice(0, 300)}`);
-    const bundle = await r.json();
-    if (!bundle.ok) die(`the site cannot export: ${(bundle.errors || []).join('; ')}`);
+    const bundle = await fetchBundle((opt('url') || process.env.COLLAB_URL || '').replace(/\/+$/, ''), String(process.env.EXPORT_TOKEN || '').trim());
     const root = path.join(opt('out') || '.', ex.path);
     writeTree(root, bundle);
     const problems = roundTrip(root, bundle);
@@ -100,8 +130,22 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (problems.length) die('the round trip failed; nothing should be committed');
     console.log(`content-export: ${Object.keys(bundle.files).length} files to ${root}, version ${bundle.live.id}, digest ${bundle.live.digest}`);
     if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${bundle.live.id}\ndigest=${bundle.live.digest}\n`);
+  } else if (cmd === 'pull') {
+    const bundle = await fetchBundle((opt('url') || process.env.COLLAB_URL || '').replace(/\/+$/, ''), String(process.env.EXPORT_TOKEN || '').trim());
+    const t = pullTarget(bundle, process.env.GITHUB_REPOSITORY);
+    if (t.error) die(t.error);
+    const root = path.join(opt('out') || '.', t.export.path);
+    writeTree(root, bundle);
+    const problems = roundTrip(root, bundle);
+    for (const p of problems) console.error(`✗ ${p}`);
+    if (problems.length) die('the round trip failed; nothing should be committed');
+    console.log(`content-export: ${Object.keys(bundle.files).length} files to ${root}, version ${bundle.live.id}, digest ${bundle.live.digest}`);
+    if (process.env.GITHUB_OUTPUT) {
+      fs.appendFileSync(process.env.GITHUB_OUTPUT, [`path=${t.export.path}`, `branch=${t.export.branch}`, `push_branch=${t.export.push_branch}`,
+        `project=${t.project}`, `version=${bundle.live.id}`, `digest=${bundle.live.digest}`, ''].join('\n'));
+    }
   } else {
-    console.error('usage: content-export.mjs target | write --out=DIR [--url=URL]');
+    console.error('usage: content-export.mjs target | write --out=DIR [--url=URL] | pull --out=DIR [--url=URL]');
     process.exit(2);
   }
 }
