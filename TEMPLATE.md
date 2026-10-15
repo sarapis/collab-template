@@ -44,7 +44,7 @@ two codebases.
 | `audiences`, `asked_rounds`, `references` | What questions may be addressed to, when each round opened, and named outside links |
 | `public` | What `/llms.txt` says: `repo`, `contact` (a team, never a person's address), `llms_txt: false` to publish nothing |
 | `chat` | `enabled`, `retention_days` |
-| `site.passthrough` | Self-contained pages copied as-is, `{from, to}`; the gate exempts them from layout checks |
+| `site.passthrough` | Self-contained pages copied as-is, `{from, to}`; the gate exempts them from layout checks, and refuses a `to` whose address is already a document's or a page's |
 | `site.nav.artifacts` | Extra sidebar links under Artifacts, `{href, label}` (in the band layout, extra page pills) |
 | `site.layout` | `classic` (the default: the v1.0.0 sidebar, built by Eleventy) or `band` (see "The band layout") |
 | `content.source` | `git` (the default: `content/` in this repository) or `rows` (D1, edited on the site; needs `site.layout: band`) |
@@ -167,6 +167,36 @@ checks; they run when it is merged.
   differently and no setting above does it, add the setting to the template
   (a config key with a default that leaves every other instance unchanged), not
   a branch in your copy.
+
+## What no test catches
+
+Three things that have already broken a live site, each of which a green Node
+test suite said nothing about.
+
+**Never read a property off an env binding.** In workerd a binding is an RPC
+stub, so a property it does not have is not `undefined` — it is another truthy
+stub, which throws the moment anything uses it. `env.ASSETS?.real` shipped in
+v1.2.0 as a harmless-looking probe and every signed-in page answered 1101,
+while the Node tests passed, because a plain object in a test really does
+return `undefined`. Pass the binding, never ask it what it is; where the Worker
+has to remember something about one, it is kept beside it in a WeakMap
+(`worker/src/version.js`), not on it.
+
+**Project settings live inside each version.** `project.*` is compiled into a
+version, not read at render time, so changing it and deploying changes nothing
+anybody can see. Rows mode needs a save afterwards — any item, unchanged is
+fine — to compile a new version that carries the new settings. In git mode the
+build does it. This looks exactly like a setting that does not work.
+
+**A passthrough page is served at an address nothing else owns.** `to` is a
+path, and a path can be a document's: `artifact/index.html` beside a document
+`artifact` is one URL with two pages behind it, and which one a reader gets
+depends on the layout (classic copies the artifact over the compiled page; band
+renders the document and never reaches the file). The gate refuses the
+collision now — `passthroughCollisions` in `test/detectors.js`, against the
+documents and this template's own pages — but it is worth knowing why, because
+the exemption that makes passthrough useful is also what made this invisible:
+`site.passthrough` is the list of addresses the layout checks are told to skip.
 
 ## Starting a new site
 
