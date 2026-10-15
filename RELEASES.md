@@ -3,6 +3,29 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.3.1 — Band layout fixes from the first real site
+
+**`worker/schema.sql` is unchanged.** Band layout only; classic is untouched.
+
+From a design review of ctfg-collab at desktop, tablet and phone widths:
+
+- **Narrow screens:** the Tools box is one wrapped row above the content
+  whatever `project.tools` says. Opened as a column it pushed every page's h1
+  down by a screen. The "Hide contents" switch is gone below desktop width,
+  where the rail is under the content and the switch covered the Tools row.
+- **Admin pages have icons**, so a closed (icons-only) Tools box still reaches
+  them; they used to vanish.
+- **"Where things stand" counts the documents the site lists**, as Home's card
+  does. It counted every compiled file (About, partials, posts, decisions), so
+  one page said both "1 document" and "6 documents".
+- **Activity** titles each post and decision once, as a linked h2; the item's
+  own h1 was a second, giant h1 inside a card.
+- **Home has no breadcrumb**: it was one crumb repeating the name beneath it.
+- The account corner is one row; blockquotes are styled; "Why asked:" has its
+  space.
+
+Tests: 400 → 402 (the crumb rule, the Activity heading rule, the admin icons).
+
 ## v1.3.0 — The export can be pulled by its target
 
 **`worker/schema.sql` is unchanged.**

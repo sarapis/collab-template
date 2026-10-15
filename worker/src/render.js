@@ -45,6 +45,10 @@ const ICONS = {
   activity: '<path d="M3 12h4l3 7 4-14 3 7h4"/>',
   questions: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17v.5"/>',
   involved: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M17 8v6M14 11h6"/>',
+  people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/>',
+  content: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
+  log: '<path d="M4 5h16v11H9l-5 4z"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
 };
 const icon = (name) => `<svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
 
@@ -56,10 +60,10 @@ export const TOOLS = [
 ];
 
 const ADMIN = (rows) => [
-  { href: '/admin/people/', label: 'People' },
-  ...(rows ? [{ href: '/admin/content/', label: 'Content' }] : []),
-  { href: '/admin/log/', label: 'Conversation log' },
-  { href: '/admin/settings/', label: 'Settings' },
+  { href: '/admin/people/', label: 'People', icon: 'people' },
+  ...(rows ? [{ href: '/admin/content/', label: 'Content', icon: 'content' }] : []),
+  { href: '/admin/log/', label: 'Conversation log', icon: 'log' },
+  { href: '/admin/settings/', label: 'Settings', icon: 'settings' },
 ];
 
 const cur = (on) => (on ? ' aria-current="page"' : '');
@@ -76,9 +80,13 @@ export function contentsOf(body) {
 // each one, so this does the same.
 const scrollable = (html) => String(html).replace(/<table>([\s\S]*?)<\/table>/g, '<div class="table-scroll"><table>$1</table></div>');
 
-export function standing(m) {
-  const c = m.counts;
-  return `${plural(c.questions, 'question')} · ${c.open} open · ${c.resolved} resolved · ${plural(c.documents, 'document')}`;
+// ⚠️ "Documents" means what Home and the rail LIST (written documents, not
+// About, partials, posts or decisions). The manifest's `counts.documents`
+// counts every compiled file, and showing it beside Home's card had the same
+// page say "1 document" and "6 documents".
+export function standing(version) {
+  const c = version.manifest.counts;
+  return `${plural(c.questions, 'question')} · ${c.open} open · ${c.resolved} resolved · ${plural(listedDocs(version).length, 'document')}`;
 }
 
 export function banner(status) {
@@ -121,7 +129,7 @@ export function layout(ctx, page) {
 
   const toolLinks = TOOLS.map((t) => `<a class="tool" href="${t.href}"${cur(path === t.href)} title="${esc(t.label)}">${icon(t.icon)}<span class="tool-label">${esc(t.label)}</span></a>`).join('');
   const adminLinks = ADMIN(settings.content.source === 'rows')
-    .map((a) => `<a class="tool" href="${a.href}"${cur(path === a.href)}><span class="tool-label">${esc(a.label)}</span></a>`).join('');
+    .map((a) => `<a class="tool" href="${a.href}"${cur(path === a.href)} title="${esc(a.label)}">${icon(a.icon)}<span class="tool-label">${esc(a.label)}</span></a>`).join('');
 
   const railDocs = (list, head) => (list.length
     ? `<p class="menu-head">${head}</p><ul class="rail-docs">${list.map((d) => `<li><a href="/${esc(d.slug)}/"${cur(path === `/${d.slug}/`)}>${esc(d.title)}</a></li>`).join('')}</ul>`
@@ -161,7 +169,7 @@ ${page.noindex ? '<meta name="robots" content="noindex">\n' : ''}<link rel="styl
 <body class="band-layout">
 <header class="band">
   <div class="band-inner">
-    <nav class="crumbs" aria-label="Breadcrumb">${crumbs.join('<span class="crumb-sep" aria-hidden="true">/</span>')}</nav>
+    ${path === '/' ? '' : `<nav class="crumbs" aria-label="Breadcrumb">${crumbs.join('<span class="crumb-sep" aria-hidden="true">/</span>')}</nav>`}
     <p class="band-name"><a href="/">${esc(project.name)}</a></p>
     <nav class="pills" aria-label="Pages">${pills}</nav>
   </div>
@@ -189,7 +197,7 @@ ${page.noindex ? '<meta name="robots" content="noindex">\n' : ''}<link rel="styl
     <nav class="rail-section" aria-label="Documents">${railDocs(docs, 'Documents')}${railDocs(data, 'Data')}</nav>
     <section class="rail-section">
       <p class="menu-head">Where things stand</p>
-      <p class="counts">${standing(m)}</p>
+      <p class="counts">${standing(version)}</p>
     </section>
     <div class="rail-tabs" role="tablist">
       <button class="rail-tab" type="button" data-rail="contents" aria-selected="true">Contents</button>
@@ -251,7 +259,11 @@ function activityItem(version, it) {
     const d = it.doc;
     const meta = [day(d.date), d.author ? esc(d.author) : null, it.tag ? `<span class="tag">${esc(it.tag)}</span>` : null,
       `<a href="/${esc(d.slug)}/">permalink</a>`].filter(Boolean).join(' · ');
-    return `<article class="card activity-item" data-type="${it.type}"><p class="counts">${it.type === 'decisions' ? 'Decision' : 'Post'} · ${meta}</p>${fragment(version, d.slug)}</article>`;
+    // The document's own h1 would be a second h1 on the page (and a giant one
+    // inside a card): the item's title is an h2 linking to the document, and
+    // the rest of its text follows.
+    const body = fragment(version, d.slug).replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/, '');
+    return `<article class="card activity-item" data-type="${it.type}"><p class="counts">${it.type === 'decisions' ? 'Decision' : 'Post'} · ${meta}</p><h2 class="activity-title"><a href="/${esc(d.slug)}/">${esc(d.title)}</a></h2>${body}</article>`;
   }
   if (it.round) {
     return `<article class="card activity-item" data-type="questions"><p class="counts">Questions asked · ${esc(day(it.at))}</p>
@@ -354,7 +366,7 @@ export function aboutPage(version) {
   const rows = openByAudience(m);
   return `${fragment(version, 'start')}
 <h2 id="where-things-stand">Where things stand</h2>
-<p class="counts">${standing(m)}</p>
+<p class="counts">${standing(version)}</p>
 <p class="counts">Every figure here is computed from the live version. None is typed.</p>
 <div class="cards">
 ${rows.map((r) => `<article class="card open"><p class="counts">${esc(m.audiences?.[r.audience]?.name || r.audience)}</p><p><strong>${r.count}</strong> ${r.count === 1 ? 'question' : 'questions'} still open. ${esc(m.audiences?.[r.audience]?.describes || '')}</p></article>`).join('\n') || '<article class="card"><p>Nothing is open. Every question has been resolved.</p></article>'}

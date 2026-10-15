@@ -26,7 +26,11 @@ test('Home: the band, the pills, the Tools box, the rail and the version footer'
   assert.equal(r.status, 200);
   assert.equal(r.headers.get('cache-control'), 'no-store');
   assert.match(body, /<header class="band">/);
-  assert.match(body, /<nav class="crumbs" aria-label="Breadcrumb"><a href="\/">Sample Project<\/a><\/nav>/);
+  // Home is the project's own page: a breadcrumb there would be one crumb
+  // repeating the name right under it. Every other page has one.
+  assert.doesNotMatch(body, /class="crumbs"/);
+  const doc = (await html(env, '/plan/', ADMIN)).body;
+  assert.match(doc, /<nav class="crumbs" aria-label="Breadcrumb"><a href="\/">Sample Project<\/a><span class="crumb-sep" aria-hidden="true">\/<\/span><span aria-current="page">The plan<\/span><\/nav>/);
   const pills = body.match(/<nav class="pills"[\s\S]*?<\/nav>/)[0];
   assert.equal((pills.match(/aria-current="page"/g) || []).length, 1, 'exactly one pill is current');
   assert.match(pills, /href="\/plan\/"/);
@@ -41,7 +45,9 @@ test('Home counts are the manifest’s, never typed', async () => {
   const { body } = await html(await bandEnv({ version: v }), '/', ADMIN);
   const c = v.manifest.counts;
   assert.match(body, new RegExp(`<strong class="home-figure">${c.open}</strong><span class="counts">open of ${c.visible}</span>`));
-  assert.match(body, new RegExp(`${c.questions} questions · ${c.open} open · ${c.resolved} resolved · ${c.documents} documents`));
+  const listed = v.manifest.docs.filter((x) => x.type === 'doc' && !x.partial && !x.menu).length;
+  assert.match(body, new RegExp(`${c.questions} questions · ${c.open} open · ${c.resolved} resolved · ${listed} documents?`));
+  assert.ok(listed < c.documents, 'the rail counts the listed documents, not every compiled file');
 });
 
 test('Home tells a signed-in person how many questions wait on them', async () => {
@@ -260,4 +266,19 @@ test('the bindings are probed for nothing: a runtime-shaped ASSETS serves a sign
     const r = await fetch(env, p.replace('how-we-work', 'plan'), ADMIN);
     assert.equal(r.status, 200, `${p} answered ${r.status}`);
   }
+});
+
+test('Activity: a post or decision is titled once, as an h2 that links to it', async () => {
+  const { body } = await html(await bandEnv(), '/activity/', ADMIN);
+  const main = body.split('<main>')[1].split('</main>')[0];
+  assert.equal((main.match(/<h1[\s>]/g) || []).length, 1, 'one h1 on the page');
+  assert.match(main, /<h2 class="activity-title"><a href="\/decisions\/2026-10-01-one-site\/">/);
+});
+
+test('the Tools box offers the admin pages as icons too, so a closed box still reaches them', async () => {
+  const { body } = await html(await bandEnv(), '/', ADMIN);
+  const admin = body.split('id="menu-admin"')[1].split('</div>')[0];
+  const links = admin.match(/<a class="tool"[\s\S]*?<\/a>/g) || [];
+  assert.ok(links.length >= 3);
+  for (const l of links) assert.match(l, /<svg class="tool-icon"/, `${l.slice(0, 60)} has no icon`);
 });
