@@ -12,7 +12,7 @@
 // (forViewer) and a door added later inherits that by reading the way the
 // others do. A handler that read env.ASSETS directly would see the build.
 import { HOST } from './site.generated.js';
-import { liveVersion, forViewer, statusOf, sourceByPath, readVersion, liveId } from './version.js';
+import { liveVersion, forViewer, statusOf, sourceByPath, readVersion, liveId, realAssets, markWrapped, isWrapped } from './version.js';
 import { canRead } from './identity.js';
 import { flag } from './flag.js';
 import * as R from './render.js';
@@ -42,10 +42,10 @@ export async function viewFor(request, env, me) {
   return p;
 }
 
+
 function viewAssets(env, request, me) {
-  const real = env.ASSETS?.real || env.ASSETS;
-  return {
-    real,
+  const real = realAssets(env.ASSETS);
+  const view = {
     async fetch(input, init) {
       const req = input instanceof Request ? input : new Request(input, init);
       const p = new URL(req.url).pathname;
@@ -61,11 +61,13 @@ function viewAssets(env, request, me) {
       return real ? real.fetch(req) : new Response('no assets bound', { status: 500 });
     },
   };
+  markWrapped(view, real);
+  return view;
 }
 
 // The environment a handler reads content through. Classic: unchanged.
 export function viewEnv(request, env, me) {
-  if (!isBand(env) || env.ASSETS?.real) return env;
+  if (!isBand(env) || isWrapped(env.ASSETS)) return env;
   return { ...env, ASSETS: viewAssets(env, request, me) };
 }
 
