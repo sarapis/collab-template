@@ -45,8 +45,9 @@ not compile changes nothing and says why.</p>
     </div>
     <p class="editor-errors" id="content-errors"></p>
     {# ⚠️ sandboxed: the preview is the site's own HTML, and an editor's markdown
-     may carry raw HTML. Unsandboxed, a srcdoc frame runs it as this origin. #}
-    <iframe class="editor-preview" id="content-frame" title="Preview" sandbox hidden></iframe>
+     may carry raw HTML. No allow-scripts, so none of it runs; allow-same-origin
+     only so the frame's stylesheets load with the session on a private site. #}
+    <iframe class="editor-preview" id="content-frame" title="Preview" sandbox="allow-same-origin" hidden></iframe>
     <h3 id="revisions">Revisions</h3>
     <ul class="editor-list" id="content-revisions"></ul>
   </section>
