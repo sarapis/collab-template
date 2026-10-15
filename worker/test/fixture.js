@@ -11,8 +11,10 @@ import { digest, sourcesOf } from '../../conformance/digest.mjs';
 import { d1 } from './d1.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+// ⚠️ The tests' own project, not the instance's content/ (which a fork replaces).
+export const PROJECT = path.join(ROOT, 'worker/test/project');
 
-export function sampleVersion(root = ROOT) {
+export function sampleVersion(root = PROJECT) {
   const r = compile({ root });
   if (!r.ok) throw new Error(r.errors.join('\n'));
   const sources = sourcesOf(root, r.manifest);
@@ -23,7 +25,7 @@ export function sampleVersion(root = ROOT) {
   };
 }
 
-export const sampleFiles = (root = ROOT) => readProject({ root });
+export const sampleFiles = (root = PROJECT) => readProject({ root });
 
 export function host({ layout = 'band', source = 'git', tools, groups } = {}) {
   return {
