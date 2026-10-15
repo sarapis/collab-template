@@ -20,7 +20,9 @@
   border: 1px solid var(--border); border-radius: 999px; background: var(--card); }
 .pill:hover { border-color: var(--ring); color: var(--foreground); }
 .pill[aria-current="page"] { background: var(--accent); color: var(--accent-foreground); border-color: var(--ring); font-weight: 600; }
-.band-account { flex: 0 0 auto; display: flex; flex-direction: column; gap: .15rem; min-width: 10rem; }
+.band-account { flex: 0 0 auto; display: flex; align-items: center; gap: 1rem; }
+.band-account .who-row { gap: .75rem; }
+.band-account .foot-link { padding: .25rem .5rem; }
 
 /* Tools, content and the rail. The rail is the classic layout's own, so its
    contents and comments behave as they always have. */
@@ -51,9 +53,17 @@
 .tools-check:not(:checked) ~ .tools .tool-label { display: none; }
 .tools-check:not(:checked) ~ .tools .tools-head { display: none; }
 .tools-check:not(:checked) ~ .tools .tools-toggle::before { content: "\2630"; font-size: .95rem; }
+/* ⚠️ Narrow screens: ONE row of tools above the content, whatever
+   `project.tools` says. Opened as a desktop column it stacked every tool and
+   the Admin section above the page and pushed the h1 a screen down. The
+   toggle still shows or hides the names; it never makes the row a column. */
 @media (max-width: 63.99rem) {
-  .tools-list { flex-direction: row; flex-wrap: wrap; }
-  .tools-check:checked ~ .tools .tools-list { flex-direction: column; }
+  .tools { margin: .75rem 1rem 0; padding: .35rem .5rem; display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
+  .tools-toggle { padding: .15rem .35rem; }
+  .tools-list, .tools-check:checked ~ .tools .tools-list { flex-direction: row; flex-wrap: wrap; gap: .1rem .25rem; }
+  .tools-list .menu-admin { display: contents; }
+  .tools-list .menu-head { display: none; }
+  .tools-list .menu-admin[hidden] { display: none; }
 }
 
 main .status-banner { max-width: var(--measure); font-family: var(--font-sans); font-size: .9rem; padding: .7rem .9rem;
@@ -104,3 +114,17 @@ main > .editor { max-width: 100%; }
    column, under the band, clear of the account and the footer. */
 .band-shell { position: relative; }
 .band-layout .rail-switch { position: absolute; top: .7rem; right: 1.25rem; }
+/* Below the desktop width the rail is under the content, so there is nothing
+   beside the page to hide, and the switch only covered the Tools row. */
+@media (max-width: 63.99rem) { .band-layout .rail-switch { display: none; } }
+
+/* Prose details the band pages showed bare. */
+main blockquote { margin: 1.2rem 0; padding: .6rem .9rem; border-left: 3px solid var(--border);
+  background: var(--muted); color: var(--muted-foreground); border-radius: 0 var(--radius) var(--radius) 0; }
+main blockquote > :first-child { margin-top: 0; }
+main blockquote > :last-child { margin-bottom: 0; }
+/* The compiler writes "<strong>Why asked:</strong>" straight against the text. */
+.band-layout .q-why strong { margin-right: .3em; }
+.activity-title { margin: .3rem 0 .6rem; font-size: 1.3rem; }
+.activity-title a { color: var(--foreground); text-decoration: none; }
+.activity-title a:hover { color: var(--primary); text-decoration: underline; }
