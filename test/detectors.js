@@ -542,3 +542,44 @@ export function agentIndexRot(notice, { isPublic, resolves }) {
   }
   return out;
 }
+
+/**
+ * A passthrough page must not claim an address the site already serves.
+ *
+ * ⚠️ `site.passthrough` is the one place an instance can put a file at an
+ * arbitrary address, and it is copied in AFTER everything else is built. A
+ * `to` of `artifact/index.html` on a site that also has a document `artifact`
+ * is two things at one URL, and which of them a reader gets is decided by the
+ * layout rather than by anything anybody wrote down: in the classic layout the
+ * copy lands on top of the compiled page, so the artifact wins and the
+ * document is gone; in the band layout the Worker renders the document from
+ * the live version and never reaches ASSETS, so the artifact is the one that
+ * is gone. Either way nothing fails — a page is served at that address, it is
+ * simply the other one — and the gate's own layout checks skip it, because
+ * `site.passthrough` is exactly the list of addresses they are told to skip.
+ * So the hole this opens is in the checks as well as in the site.
+ *
+ * `served` is a Map of address → what already serves it, supplied by the
+ * caller: the documents and the pages this template builds.
+ */
+export function passthroughCollisions(passthrough, served) {
+  const out = [];
+  const mine = new Map();
+  for (const entry of passthrough || []) {
+    const from = String(entry?.from || '');
+    const to = String(entry?.to || '');
+    if (!from || !to) {
+      out.push(`site.passthrough has an entry without ${from ? 'a to' : 'a from'}`);
+      continue;
+    }
+    // The address Eleventy will serve it at. A `to` naming a directory keeps
+    // the source file's own name; `index.html` is the directory itself.
+    let at = '/' + to.replace(/^\/+/, '');
+    if (at.endsWith('/')) at += from.split('/').pop();
+    at = at.replace(/(^|\/)index\.html$/, '$1');
+    const taken = served.get(at) || mine.get(at);
+    if (taken) out.push(`site.passthrough serves ${from} at ${at}, which is already ${taken}`);
+    else mine.set(at, `the passthrough page ${to}`);
+  }
+  return out;
+}

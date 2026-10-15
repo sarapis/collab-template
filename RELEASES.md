@@ -3,6 +3,29 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.6.0 — A passthrough page cannot claim an address the site serves
+
+**`worker/schema.sql` is unchanged.** No setting changes; nothing an instance
+does today behaves differently.
+
+- The gate refuses a `site.passthrough` entry whose served address is already a
+  document's or one of this template's own pages (`passthroughCollisions` in
+  `test/detectors.js`). Such an entry was two pages at one URL with no error
+  anywhere: in the classic layout the copied file lands on top of the compiled
+  page, in the band layout the Worker renders the document and never reaches
+  the file. The check reads `site.config.yml` against the manifest, not the
+  built tree, because whichever page loses the collision is also the evidence
+  that there was one. It catches a directory `to` (which keeps the source
+  file's name) and two entries at one address as well.
+- The list of pages this template builds is now one const in `test/gate.test.js`
+  (`TEMPLATE_PAGES`), read by the orphan check and the new one.
+- TEMPLATE.md gains "What no test catches": binding probes (`env.ASSETS?.x` is a
+  truthy RPC stub in workerd and 1101 on every page), `project.*` settings being
+  compiled into a version rather than read at render time, and this passthrough
+  trap. All three have broken a live site while the Node suite stayed green.
+
+Tests: 411 → 417, in both the default and the band+rows variant.
+
 ## v1.5.0 — The header lists the documents, in dropdown menus
 
 **`worker/schema.sql` is unchanged.** Band layout only; off unless set.

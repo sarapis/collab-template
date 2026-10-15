@@ -41,6 +41,15 @@ const EXTERNAL_ARTIFACTS = new Set((CONFIG.site?.passthrough || [])
   .map((x) => '/' + String(x.to).replace(/^\//, ''))
   .filter((to) => to.endsWith('.html')));
 const SITE_PAGES = P.filter((p) => !EXTERNAL_ARTIFACTS.has(p.path));
+// The pages this TEMPLATE builds, as opposed to the ones a document produces.
+// Read twice: by the orphan check, and by the passthrough check below, which
+// needs to know every address the site serves without the instance's help.
+const TEMPLATE_PAGES = ['/questions/index.html', '/activity/index.html', '/decisions/index.html',
+  '/design/index.html', '/admin/index.html', '/admin/log/index.html',
+  '/admin/people/index.html', '/admin/settings/index.html', '/summary/index.html',
+  '/notifications/index.html',
+  // The band layout's own pages, and the content editor where content is rows.
+  ...(BAND ? ['/index.html', '/about/index.html', '/get-involved/index.html', '/admin/content/index.html'] : [])];
 const CSS = read('design/tokens.css') + read('site/site.css') + (BAND ? read('site/band.css') : '') + read('widget/collab.css');
 const MANIFEST = JSON.parse(read('build/manifest.json'));
 // The editor is part of the widget where the content is rows (it ships only there).
@@ -416,18 +425,51 @@ test('the menu-current check can see two items selected at once', () => {
 });
 
 test('nothing is published that this build did not produce', () => {
-  const templates = ['/questions/index.html', '/activity/index.html', '/decisions/index.html',
-    '/design/index.html', '/admin/index.html', '/admin/log/index.html',
-    '/admin/people/index.html', '/admin/settings/index.html', '/summary/index.html',
-    '/notifications/index.html', ...EXTERNAL_ARTIFACTS,
-    // The band layout's own pages, and the content editor where content is rows.
-    ...(BAND ? ['/index.html', '/about/index.html', '/get-involved/index.html', '/admin/content/index.html'] : [])];
-  assert.deepEqual(d.orphanedPages(P, MANIFEST, templates), []);
+  assert.deepEqual(d.orphanedPages(P, MANIFEST, [...TEMPLATE_PAGES, ...EXTERNAL_ARTIFACTS]), []);
 });
 
 test('the orphan check can see a page left behind by a deleted document', () => {
   const stale = [{ path: '/gone/index.html', html: '' }];
   assert.equal(d.orphanedPages(stale, { docs: [] }, []).length, 1);
+});
+
+// Every address this site serves without consulting site.passthrough, so a
+// passthrough that claims one is caught by the config rather than by whichever
+// of the two the build happens to leave standing.
+const SERVED_ADDRESSES = new Map([
+  ...TEMPLATE_PAGES.map((p) => [p.replace(/index\.html$/, ''), 'a page this template builds']),
+  ...(MANIFEST.docs || []).filter((x) => !x.partial).map((x) => [`/${x.slug}/`, `the document “${x.title}”`]),
+]);
+
+test('no passthrough page claims an address the site already serves', () => {
+  assert.deepEqual(d.passthroughCollisions(CONFIG.site?.passthrough, SERVED_ADDRESSES), []);
+});
+
+test('the passthrough check can see one shadowing a document', () => {
+  const doc = MANIFEST.docs.find((x) => !x.partial);
+  const bad = [{ from: 'instance/artifact.html', to: `${doc.slug}/index.html` }];
+  assert.equal(d.passthroughCollisions(bad, SERVED_ADDRESSES).length, 1);
+});
+
+test('the passthrough check can see one shadowing a page this template builds', () => {
+  const bad = [{ from: 'instance/artifact.html', to: 'questions/index.html' }];
+  assert.equal(d.passthroughCollisions(bad, SERVED_ADDRESSES).length, 1);
+});
+
+test('the passthrough check reads a directory target as the source file’s name', () => {
+  const doc = MANIFEST.docs.find((x) => !x.partial);
+  const bad = [{ from: `instance/${doc.slug}/index.html`, to: `${doc.slug}/` }];
+  assert.equal(d.passthroughCollisions(bad, SERVED_ADDRESSES).length, 1);
+});
+
+test('the passthrough check can see two entries at one address', () => {
+  const two = [{ from: 'instance/a.html', to: 'artifact.html' }, { from: 'instance/b.html', to: 'artifact.html' }];
+  assert.equal(d.passthroughCollisions(two, SERVED_ADDRESSES).length, 1);
+});
+
+test('the passthrough check leaves an address of its own alone', () => {
+  const ok = [{ from: 'instance/artifact.html', to: 'artifact.html' }, { from: 'instance/deck.html', to: 'deck/index.html' }];
+  assert.deepEqual(d.passthroughCollisions(ok, SERVED_ADDRESSES), []);
 });
 
 test('the site pins its colour scheme', () => {
