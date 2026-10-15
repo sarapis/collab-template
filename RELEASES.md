@@ -53,6 +53,11 @@ Tests: `npm test` runs with `--experimental-sqlite` (Node 22): the rows code is
 tested against real SQLite with `worker/schema.sql`. The template's CI also runs
 the whole gate on a band + rows build of the sample (`npm run variant`).
 
+⚠️ Who may change the content widens on a rows site: an editor is an admin OR a
+contributor (HOST-CONTRACT.md: "editors are admins plus the project's
+reviewers"), and an editor's save is live. In git mode the same people needed a
+merged commit. Review your contributors before switching.
+
 Not in this release: an instance's own figures on Home cards (Home counts only
 what the manifest counts); questions edited as separate fields (their status is a
 field; their text is edited in the document).

@@ -44,7 +44,9 @@ not compile changes nothing and says why.</p>
       <span class="counts" id="content-saved"></span>
     </div>
     <p class="editor-errors" id="content-errors"></p>
-    <iframe class="editor-preview" id="content-frame" title="Preview" hidden></iframe>
+    {# ⚠️ sandboxed: the preview is the site's own HTML, and an editor's markdown
+     may carry raw HTML. Unsandboxed, a srcdoc frame runs it as this origin. #}
+    <iframe class="editor-preview" id="content-frame" title="Preview" sandbox hidden></iframe>
     <h3 id="revisions">Revisions</h3>
     <ul class="editor-list" id="content-revisions"></ul>
   </section>
