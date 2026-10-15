@@ -264,3 +264,27 @@ test('rows mode with no version yet shows the build it was deployed with', async
   const env = await bandEnv({ version, source: 'rows' });
   assert.match(await page(env, '/'), new RegExp(`data-digest="${version.digest}"`));
 });
+
+test('the export script writes the tree and passes its own round trip; a rollback is named, not passed', async () => {
+  const { writeTree, roundTrip } = await import('../../scripts/content-export.mjs');
+  const { env } = await rowsSite();
+  const it = await item(env, 'content/plan.md');
+  await save(env, 'content/plan.md', { body: it.body.replace('A short document', 'EXPORTED document') });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'collab-export-'));
+  try {
+    const bundle = (await body(env, get('/api/content/export', ADMIN))).j;
+    fs.mkdirSync(path.join(dir, 'docs/collab/stale'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'docs/collab/stale/old.md'), 'deleted on the site');
+    writeTree(path.join(dir, 'docs/collab'), bundle);
+    assert.ok(!fs.existsSync(path.join(dir, 'docs/collab/stale/old.md')), 'a document deleted on the site is deleted in git');
+    assert.ok(fs.existsSync(path.join(dir, 'docs/collab/statuses.json')) && fs.existsSync(path.join(dir, 'docs/collab/drafts.json')));
+    assert.deepEqual(roundTrip(path.join(dir, 'docs/collab'), bundle), []);
+
+    await body(env, send('POST', '/api/versions/live', EDITOR, { id: 1 }));
+    const rolled = (await body(env, get('/api/content/export', ADMIN))).j;
+    writeTree(path.join(dir, 'docs/collab'), rolled);
+    const problems = roundTrip(path.join(dir, 'docs/collab'), rolled);
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /rolled back from 2/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

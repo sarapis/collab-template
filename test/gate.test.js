@@ -19,7 +19,11 @@ function pages(dir = SITE, base = '') {
   return out;
 }
 
-const P = pages();
+// ⚠️ The band layout's pages are made by the Worker, not by Eleventy, so the
+// gate checks what the Worker serves (test/served.js); the classic layout's
+// pages are the files.
+const BAND = (yaml.load(read('site.config.yml')) || {}).site?.layout === 'band';
+const P = BAND ? await (await import('./served.js')).servedPages(SITE) : pages();
 
 // The instance's own settings (site.config.yml). The gate reads the few things
 // that differ between instances from there, so this file is the same everywhere.
@@ -37,9 +41,10 @@ const EXTERNAL_ARTIFACTS = new Set((CONFIG.site?.passthrough || [])
   .map((x) => '/' + String(x.to).replace(/^\//, ''))
   .filter((to) => to.endsWith('.html')));
 const SITE_PAGES = P.filter((p) => !EXTERNAL_ARTIFACTS.has(p.path));
-const CSS = read('design/tokens.css') + read('site/site.css') + read('widget/collab.css');
+const CSS = read('design/tokens.css') + read('site/site.css') + (BAND ? read('site/band.css') : '') + read('widget/collab.css');
 const MANIFEST = JSON.parse(read('build/manifest.json'));
-const WIDGET = read('widget/collab.js');
+// The editor is part of the widget where the content is rows (it ships only there).
+const WIDGET = read('widget/collab.js') + (fs.existsSync(path.join(SITE, 'content-editor.js')) ? read('widget/content-editor.js') : '');
 // The generated notice, parsed once. `read` it rather than importing, so the
 // gate checks the bytes the Worker will actually serve.
 const PUBLIC_NOTICE = JSON.parse(
@@ -56,7 +61,11 @@ test('the in-page anchor check can see a violation', () => {
   assert.equal(d.danglingInPageAnchors([{ path: '/x', html: '<a href="#ghost">x</a>' }]).length, 1);
 });
 
-test('cross-document links all resolve', () => assert.deepEqual(d.danglingCrossLinks(P, matches), []));
+// The band layout's redirects (About replaces /start/ and /summary/; Decisions
+// are Activity) are routes too: a link to one lands on a page.
+const BAND_REDIRECTS = new Set(['/start/', '/summary/', '/decisions/']);
+const isRoute = (p) => matches(p) || (BAND && BAND_REDIRECTS.has(p));
+test('cross-document links all resolve', () => assert.deepEqual(d.danglingCrossLinks(P, isRoute), []));
 test('the cross-link check can see a missing page', () => {
   assert.equal(d.danglingCrossLinks([{ path: '/index.html', html: '<a href="/nowhere/">x</a>' }]).length, 1);
 });
@@ -209,8 +218,10 @@ test('the menu is reachable with no JavaScript', () => {
   // being a page and became a router.
   const page = P[0];
   assert.ok(page, 'no pages were built');
-  assert.match(page.html, /<input type="checkbox" class="menu-check"/);
-  assert.match(page.html, /<label class="menu-toggle" for="menu-check">/);
+  // The band layout's Tools box opens the same way: a checkbox, no script.
+  const [check, label] = BAND ? ['tools-check', 'tools-toggle'] : ['menu-check', 'menu-toggle'];
+  assert.match(page.html, new RegExp(`<input type="checkbox" class="${check}"`));
+  assert.match(page.html, new RegExp(`<label class="${label}" for="${check}">`));
   assert.match(page.html, /href="\/questions\/"/);
 });
 
@@ -408,7 +419,9 @@ test('nothing is published that this build did not produce', () => {
   const templates = ['/questions/index.html', '/activity/index.html', '/decisions/index.html',
     '/design/index.html', '/admin/index.html', '/admin/log/index.html',
     '/admin/people/index.html', '/admin/settings/index.html', '/summary/index.html',
-    '/notifications/index.html', ...EXTERNAL_ARTIFACTS];
+    '/notifications/index.html', ...EXTERNAL_ARTIFACTS,
+    // The band layout's own pages, and the content editor where content is rows.
+    ...(BAND ? ['/index.html', '/about/index.html', '/get-involved/index.html', '/admin/content/index.html'] : [])];
   assert.deepEqual(d.orphanedPages(P, MANIFEST, templates), []);
 });
 

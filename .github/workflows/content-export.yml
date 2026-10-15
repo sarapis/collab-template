@@ -1,0 +1,76 @@
+name: content export
+
+# The nightly export of a rows site's content to git (TEMPLATE.md, "Content as
+# rows"). Does nothing unless site.config.yml sets content.source: rows and
+# content.export.
+#
+# ⚠️ The Worker holds no git credential. This workflow reads the site with the
+# read-only EXPORT_TOKEN, checks the round trip (the exported tree compiles to
+# the digest the site serves), and pushes ONE branch of the TARGET repository
+# with a deploy key that exists only there. It never pushes the target's base
+# branch: a person merges the export, or the target opens a pull request for it.
+#
+# Repository settings of THIS (the instance's) repository:
+#   variable COLLAB_URL         the site, e.g. https://collab.example.org
+#   secret   EXPORT_TOKEN       the same value as the Worker's EXPORT_TOKEN secret
+#   secret   EXPORT_DEPLOY_KEY  the private half of a WRITE deploy key on the target
+on:
+  schedule:
+    - cron: '45 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: content-export
+  cancel-in-progress: false
+
+jobs:
+  export:
+    if: github.repository != 'sarapis/collab-template'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - id: target
+        run: node scripts/content-export.mjs target >> "$GITHUB_OUTPUT"
+      - if: steps.target.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.target.outputs.repo }}
+          ref: ${{ steps.target.outputs.branch }}
+          ssh-key: ${{ secrets.EXPORT_DEPLOY_KEY }}
+          path: target
+          persist-credentials: true
+      - if: steps.target.outputs.enabled == 'true'
+        id: write
+        run: node scripts/content-export.mjs write --out=target
+        env:
+          COLLAB_URL: ${{ vars.COLLAB_URL }}
+          EXPORT_TOKEN: ${{ secrets.EXPORT_TOKEN }}
+      - if: steps.target.outputs.enabled == 'true'
+        working-directory: target
+        env:
+          EXPORT_PATH: ${{ steps.target.outputs.path }}
+          PUSH_BRANCH: ${{ steps.target.outputs.push_branch }}
+          PROJECT: ${{ steps.target.outputs.project }}
+          VERSION: ${{ steps.write.outputs.version }}
+          DIGEST: ${{ steps.write.outputs.digest }}
+        run: |
+          git config user.name "collab content export"
+          git config user.email "collab-export@users.noreply.github.com"
+          git checkout -B "$PUSH_BRANCH"
+          git add -A -- "$EXPORT_PATH"
+          if git diff --cached --quiet; then
+            echo "No change since the base branch: nothing to export."
+            exit 0
+          fi
+          git commit -q -m "Export $PROJECT content: version $VERSION" -m "Digest $DIGEST, checked by the round trip before this commit."
+          # The branch is regenerated from the base every night, so it is
+          # replaced, not appended to.
+          git push --force origin "$PUSH_BRANCH"

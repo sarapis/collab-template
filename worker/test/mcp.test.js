@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import worker from '../src/index.js';
+import { CLASSIC } from './classic.js';
 
 // The real manifest, so these tests break when the compiler's output changes
 // shape -- which is the point. A hand-written fixture would keep passing.
@@ -72,7 +73,7 @@ const USERS = [
   { email: 'olivia@example.org', name: 'Olivia', role: 'contributor', audiences: '["olivia"]', disabled_at: null },
   { email: 'guest@example.org', name: 'Guest', role: 'user', audiences: '["devin"]', disabled_at: null },
 ];
-const env = () => ({ DB: db(), ASSETS: assets(), AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true' });
+const env = () => ({ DB: db(), ASSETS: assets(), COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true' });
 
 const rpc = (method, params, who) => new Request('https://x/mcp', {
   method: 'POST',

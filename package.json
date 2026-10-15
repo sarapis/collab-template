@@ -15,7 +15,8 @@
     "export": "node scripts/export-answers.mjs",
     "clean": "rm -rf _site build",
     "new": "node scripts/new-artifact.mjs",
-    "figures": "node scripts/export-figures.mjs"
+    "figures": "node scripts/export-figures.mjs",
+    "variant": "node scripts/variant-check.mjs"
   },
   "devDependencies": {
     "@11ty/eleventy": "^3.1.6",

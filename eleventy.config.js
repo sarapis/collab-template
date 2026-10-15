@@ -17,6 +17,9 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ 'widget/collab.js': 'collab.js' });
   eleventyConfig.addPassthroughCopy({ 'widget/collab.css': 'collab.css' });
   eleventyConfig.addPassthroughCopy({ 'design/tokens.css': 'tokens.css' });
+  // The content editor exists only where the content is rows.
+  if (config.content?.source === 'rows') eleventyConfig.addPassthroughCopy({ 'widget/content-editor.js': 'content-editor.js' });
+  else eleventyConfig.ignores.add('site/admin-content.njk');
   if (band) {
     eleventyConfig.addPassthroughCopy({ 'site/band.css': 'band.css' });
     eleventyConfig.addPassthroughCopy({ 'build/version.json': '_build/version.json' });

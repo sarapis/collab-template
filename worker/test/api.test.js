@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
+import { CLASSIC } from './classic.js';
 
 // A stub D1 that records what was asked of it. Enough to hold the rules that
 // matter -- authorship, the revision trail, permission -- without a network.
@@ -79,7 +80,7 @@ const USERS = [
   { email: 'guest@example.org', name: 'Guest', role: 'user', audiences: '["devin"]', disabled_at: null },
 ];
 
-const env = (DB) => ({ DB, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true' });
+const env = (DB) => ({ DB, COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true' });
 const as = (who, init = {}) => new Request('https://x' + (init.path || '/api/me'), {
   method: init.method || 'GET',
   headers: Object.assign(who ? { cookie: `collab_session=${who}` } : {}, init.body ? { 'content-type': 'application/json' } : {}),
@@ -187,7 +188,7 @@ test('comments are readable and stay separate from answers', async () => {
 
 function withManifest(DB, questions) {
   return {
-    DB, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
+    DB, COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
     ASSETS: { fetch: async () => new Response(JSON.stringify({
       questions, audiences: { devin: { name: 'Devin' }, olivia: { name: 'Olivia' } },
       asked_rounds: { r1: { new: false, opened: '2026-09-16T00:00:00.000Z' },

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
+import { CLASSIC } from './classic.js';
 
 // `/` is a router, not a page.
 //
@@ -40,7 +41,7 @@ function db() {
 }
 
 const env = (DB) => ({
-  DB, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
+  DB, COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
   ASSETS: { fetch: async (req) => new Response('page: ' + new URL(req.url).pathname, { status: 200 }) },
 });
 

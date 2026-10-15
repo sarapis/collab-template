@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import worker from '../src/index.js';
 import { PROJECT } from '../src/site.generated.js';
 import { issue, sign } from '../src/session.js';
+import { CLASSIC } from './classic.js';
 
 // The roster is a table now, so the stub carries one.
 const USERS = [
@@ -15,7 +16,7 @@ function envFor(list) {
       run: async () => ({}), all: async () => ({ results: [] }),
       first: async () => (/FROM users WHERE email/.test(sql) ? list.find((u) => u.email === a[0]) || null : null),
     }) }), batch: async () => {} },
-    AGENT_TOKENS: '{}', PUBLIC_READ: 'false',
+    COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: 'false',
     SESSION_SECRET: 'test-secret-value', MAGIC_LINK_FROM: 'noreply@example.org', MAGIC_LINK_TO_LOG: 'true',
   };
 }
