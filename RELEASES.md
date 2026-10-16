@@ -3,6 +3,38 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.10.0 — Addressing: who a question is waiting on, apart from its audience
+
+**The compiler's output changes, but only for a project that uses it.** No
+setting is required and `worker/schema.sql` is unchanged. A project that writes
+no `to=` and declares no `addressees` compiles byte-identical to v1.9.0
+(measured on this repository's own site: `build/` and `_site/` identical), so
+its digest does not move. `conformance/expected/` is regenerated in this
+commit: the sample now addresses a public and a members question, so every
+host's conformance test shows the new keys.
+
+- **`to="name, name"`** on a `:::question{...}` names who it is waiting on: a
+  role or a named person, each declared under a new optional `addressees:` map
+  in `site.config.yml` (`{ name, describes }`, like `audiences`).
+- **The manifest** gains `addressees` (only when declared) and `questions[].to`
+  (only on a question that has `to=`), and the margin aside gains `data-to` and
+  a "to …" label after the audience.
+- **The build fails** on an undeclared addressee, an empty `to=`, a name given
+  twice, or `to=` with no `addressees` declared: a typo never leaves a question
+  waiting on nobody.
+- **Why:** Databook reads `audience` as visibility (exactly `public` or
+  `members`), so a collab site whose audiences are addressing
+  (`platform-team`, `sarapis`) could not move there without hiding its public
+  questions. `to=` carries the addressing; `audience` keeps meaning what each
+  host says (HOST-CONTRACT.md, "Addressing").
+- **The Worker host does not read `to` yet.** It still treats the audience as
+  addressing; `to=` there only adds the label. Instances (undatacommons-collab,
+  comms-strat) need nothing from this release unless they adopt `to=`.
+
+Tests: 436 → 441 (`packages/compile/test/compile.test.js`: addressed, absent
+when unused, undeclared, no addressees declared, empty and repeated). The
+undeclared-name guard fails when its check is removed.
+
 ## v1.9.0 — Groups on the People page, and moving a document
 
 **`worker/schema.sql` is unchanged.** No setting changes, and the compiler's

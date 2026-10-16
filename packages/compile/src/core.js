@@ -19,6 +19,11 @@ function splitFront(raw) {
   return { data: yaml.load(m[1]) || {}, body: raw.slice(m[0].length) };
 }
 
+// `to="platform-team, devin"` -> ['platform-team', 'devin']: commas or spaces.
+export function addressList(raw) {
+  return String(raw).split(/[\s,]+/).filter(Boolean);
+}
+
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -30,10 +35,13 @@ function esc(s) {
 // the repo -- so it ships in the HTML and the widget only ADDS the answers and
 // the form. A document with no JavaScript and no network still shows every
 // question it is hedging on, which is the honest state of the document.
-function renderAside(q) {
+function renderAside(q, addressees) {
   const cls = ['q', q.resolved ? 'q-resolved' : 'q-open'].join(' ');
   const num = `<a class="q-num" href="/questions/#q${q.number}">Q${q.number}</a>`;
-  const meta = `<span class="q-audience">${esc(q.audience)}</span>`;
+  const to = q.to
+    ? ` <span class="q-to">to ${q.to.map((k) => esc(addressees?.[k]?.name || k)).join(', ')}</span>`
+    : '';
+  const meta = `<span class="q-audience">${esc(q.audience)}</span>${to}`;
   const resolved = q.resolved
     ? `<p class="q-resolved-note">resolved · see <a href="${esc(q.resolved)}">this passage</a></p>`
     : '';
@@ -44,7 +52,7 @@ function renderAside(q) {
         : `<a href="${esc(r.url)}" rel="noreferrer" target="_blank">${esc(r.label)} \u2197</a>`)).join(' · ')}</p>`
     : '';
   return [
-    `<aside class="${cls}" id="q${q.number}" data-question="${esc(q.id)}" data-number="${q.number}" data-audience="${esc(q.audience)}">`,
+    `<aside class="${cls}" id="q${q.number}" data-question="${esc(q.id)}" data-number="${q.number}" data-audience="${esc(q.audience)}"${q.to ? ` data-to="${esc(q.to.join(' '))}"` : ''}>`,
     `<header class="q-head">${num} ${meta}</header>`,
     `<div class="q-body">${q.body}</div>`,
     why,
@@ -77,6 +85,12 @@ export function compileFiles({ files, contentDir = 'content', configFile = 'site
   const errors = [], warnings = [];
   const config = yaml.load(files[configFile] ?? '') || {};
   const audiences = new Set(Object.keys(config.audiences || {}));
+  // ADDRESSING, apart from the audience: `to="a, b"` names who a
+  // question is waiting on, each one declared under `addressees`. Optional, and
+  // absent from the output when unused, so a project that never addresses a
+  // question compiles byte-identical to the version before addressing. An undeclared name is an error,
+  // never a silent "waiting on nobody" (the typo v1.9.0 fixed for groups).
+  const addressees = config.addressees || null;
 
   const existingLock = files[lockFile] != null ? JSON.parse(files[lockFile]) : null;
 
@@ -160,6 +174,16 @@ export function compileFiles({ files, contentDir = 'content', configFile = 'site
     if (!q.attrs.audience) errors.push(`${where}: question "${slug}" names no audience`);
     else if (audiences.size && !audiences.has(q.attrs.audience)) errors.push(`${where}: question "${slug}" names audience "${q.attrs.audience}", which site.config.yml does not declare`);
 
+    if (q.attrs.to !== undefined) {
+      const to = addressList(q.attrs.to);
+      if (!to.length) errors.push(`${where}: question "${slug}" has an empty to=`);
+      else if (!addressees) errors.push(`${where}: question "${slug}" is addressed (to=), but site.config.yml declares no addressees`);
+      for (const name of to) {
+        if (addressees && !Object.hasOwn(addressees, name)) errors.push(`${where}: question "${slug}" is addressed to "${name}", which site.config.yml does not declare under addressees`);
+      }
+      if (new Set(to).size !== to.length) errors.push(`${where}: question "${slug}" names an addressee twice`);
+    }
+
     // A missing round FAILS rather than defaulting. Defaulting would file a new
     // round under "you have already seen these", and nothing would look wrong.
     if (!q.attrs.asked) errors.push(`${where}: question "${slug}" declares no asked round`);
@@ -227,6 +251,7 @@ export function compileFiles({ files, contentDir = 'content', configFile = 'site
         slug: a.slug,
         number: lock.numbers[a.slug],
         audience: a.audience,
+        ...(a.to !== undefined ? { to: addressList(a.to) } : {}),
         group: a.group || 'general',
         asked: a.asked,
         margin: a.margin !== 'false',
@@ -240,7 +265,7 @@ export function compileFiles({ files, contentDir = 'content', configFile = 'site
         why,
       };
       questions.push(record);
-      edits.push({ from: q.openIndex, to: q.closeIndex, html: record.margin ? renderAside(record) : '' });
+      edits.push({ from: q.openIndex, to: q.closeIndex, html: record.margin ? renderAside(record, addressees) : '' });
     }
 
     // Reverse order: splicing from the end keeps earlier indices valid.
@@ -312,6 +337,7 @@ export function compileFiles({ files, contentDir = 'content', configFile = 'site
   const manifest = {
     project: config.project || {},
     audiences: config.audiences || {},
+    ...(addressees ? { addressees } : {}),
     asked_rounds: rounds,
     docs: docs
       .sort((a, b) => a.nav - b.nav || a.slug.localeCompare(b.slug))
