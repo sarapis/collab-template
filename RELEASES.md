@@ -3,6 +3,36 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.8.0 — A private site's /llms.txt names the way in
+
+**`worker/schema.sql` is unchanged.** No setting changes. Every private
+instance's `/llms.txt` is rewritten by the next build; a public instance's is
+untouched.
+
+- The private notice said "the repository is the entry point and this URL is
+  not". On a private instance the repository is usually private too, so an
+  assistant was sent from a door it could not open to a door it was told not to
+  try — while `/.well-known/oauth-authorization-server` and
+  `/.well-known/oauth-protected-resource` have been served anonymously since
+  v1.2.0, which is exactly what claude.ai reads to offer the site as a custom
+  connector. The notice now says this URL IS the way in and names `/connect`
+  and `/mcp`.
+- It also carries `project.tagline` and says what kind of thing the site is —
+  documents with their open questions in the margin, numbers that never change,
+  figures computed rather than typed — so an assistant with no access can still
+  say what it is looking at instead of only "I need permission". And it says
+  plainly that nothing in the file describes the project's state, so none is
+  inferred from it.
+- `agentIndexRot` gains the matching check: on a private instance the notice
+  must name `/connect` and `/mcp`. Three self-tests, and the existing one that
+  asserted a bare private notice was fine is now stricter, because it was not.
+
+⚠️ The notice still must not name a document title or a question slug: on a
+private instance it is the only thing a stranger is served, and the gate
+asserts both. The project's name and tagline are named public fields.
+
+Tests: 422 → 424, in both the default and the band+rows variant.
+
 ## v1.7.0 — The page keeps room for the floating Ask button
 
 **`worker/schema.sql` is unchanged.** No setting changes. Every page that

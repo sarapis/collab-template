@@ -798,9 +798,24 @@ test('the agent index check can see a notice that has rotted', () => {
   assert.ok(found.some((m) => /not published/.test(m)), 'missed the private claim on a public site');
   assert.ok(found.some((m) => /\/nowhere\//.test(m)), 'missed the dead path');
   assert.ok(found.some((m) => /placeholder/.test(m)), 'missed the placeholder contact');
-  // And it must stay quiet on a private instance saying true things about itself.
+  // And it must stay quiet on a private instance saying true things about
+  // itself AND naming the way in.
   assert.deepEqual(
-    d.agentIndexRot('# A site\nThe content is not published.\n', { isPublic: false, resolves: () => true }),
+    d.agentIndexRot('# A site\nThe content is not published.\n- /connect — OAuth.\n- /mcp — token.\n',
+      { isPublic: false, resolves: () => true }),
     [],
   );
+});
+
+test('the agent-index check can see a private notice that names no way in', () => {
+  // ⚠️ The failure this replaces: the notice sent an assistant to the
+  // repository, which on a private instance is usually private too.
+  const notice = '# A site\n\nA private collaboration site.\n\nRepository: https://github.com/x/y\n';
+  const found = d.agentIndexRot(notice, { isPublic: false, resolves: () => true });
+  assert.equal(found.filter((m) => m.includes('no way in')).length, 2, 'both /connect and /mcp should be missed');
+});
+
+test('the way-in check does not fire on a public site, which lists them elsewhere', () => {
+  const notice = '# A site\n\nPublic and complete.\n';
+  assert.deepEqual(d.agentIndexRot(notice, { isPublic: true, resolves: () => true }), []);
 });

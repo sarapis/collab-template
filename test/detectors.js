@@ -536,6 +536,19 @@ export function agentIndexRot(notice, { isPublic, resolves }) {
     if (!resolves(clean)) out.push(`/llms.txt points at ${clean}, which this site does not serve`);
   }
 
+  // ⚠️ On a PRIVATE instance this file is the only thing a stranger's assistant
+  // is served, so it is the only chance to say that a door exists. The first
+  // version of this notice said the opposite — "the repository is the entry
+  // point and this URL is not" — while the repository was private too, so an
+  // assistant was sent from a door it could not open to a door it was told not
+  // to try. Naming the two endpoints is what makes the file useful rather than
+  // merely honest.
+  if (!isPublic) {
+    for (const [p, what] of [['/connect', 'the OAuth connector for claude.ai'], ['/mcp', 'the per-person token endpoint']]) {
+      if (!notice.includes(p)) out.push(`/llms.txt does not name ${p}, ${what}, so an assistant is left with no way in`);
+    }
+  }
+
   // ⚠️ A placeholder is worse than an omitted line: it reads as a route in.
   if (/example\.(org|com)|you@|TODO|FIXME/i.test(notice)) {
     out.push('/llms.txt carries a placeholder contact, which looks like a way in and is not');
