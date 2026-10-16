@@ -3,6 +3,25 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.8.1 — A fix: a failed figures export no longer overwrites the last good one
+
+**`worker/schema.sql` is unchanged.** No setting changes, and the compiler's
+output is unchanged. Take this if your instance supplies `instance/figures.mjs`.
+
+`npm run figures` wrote `content/figures.export.json` first and only then
+noticed that the hook had exported nothing. The run failed, but the file was
+already replaced by an empty export — so an instance whose measurements live in
+another checkout (one reads its probe caches from a sibling repo) lost its good
+export whenever that checkout was missing, and a commit of the result would make
+every marked figure pass by matching nothing. The check now runs before the
+write, and a failed run leaves the file untouched.
+
+`test/export-figures.test.js` runs the script in a scratch project: a hook that
+found nothing must exit 1 with the previous export byte-identical, and a hook
+that found its figures must write them.
+
+Tests: 424 → 426, in both the default and the band+rows variant.
+
 ## v1.8.0 — A private site's /llms.txt names the way in
 
 **`worker/schema.sql` is unchanged.** No setting changes. Every private
