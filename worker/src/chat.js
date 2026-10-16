@@ -14,6 +14,7 @@ import { viewEnv } from './band.js';
 import { flag } from './flag.js';
 import { secretValue } from './secrets.js';
 import { overLimit } from './limits.js';
+import { waitsOn } from './waits.js';
 
 // The model is a var, not a constant, so changing it is a config edit and a
 // deploy rather than a code change. ⚠️ Google renames these aliases; if the API
@@ -56,7 +57,7 @@ async function buildContext(env, request) {
   parts.push('\n\n---\n\n# The question catalog\n');
   for (const q of m.questions) {
     const state = q.resolved ? `resolved, see ${q.resolved}` : 'open';
-    parts.push(`Q${q.number} (${q.slug}, for ${q.audience}, ${state}): ${q.body.replace(/<[^>]+>/g, '').trim()}`);
+    parts.push(`Q${q.number} (${q.slug}, for ${waitsOn(q).join(', ')}, ${state}): ${q.body.replace(/<[^>]+>/g, '').trim()}`);
     if (q.why) parts.push(`  Why asked: ${q.why.replace(/<[^>]+>/g, '').trim()}`);
   }
 

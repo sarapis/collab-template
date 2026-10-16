@@ -3,6 +3,35 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.11.0 — The Worker host reads `to=`: who a question waits on
+
+**`worker/schema.sql` is unchanged, no setting changes, and the compiler's output
+is unchanged** (`git diff v1.10.0 v1.11.0 -- packages/compile conformance` is empty).
+A site with no `to=` behaves exactly as before; the rendered Questions page gains a
+`data-waits-on` attribute on each card (its audience, for such a site), which the
+page's filter reads. `build/` is byte-identical.
+
+v1.10.0 let a question say who it waits on (`to=`), but only Databook read it. Now
+this host does too, through one helper (`worker/src/waits.js`): a question waits on
+its `to=` addressees when it has them, else on its audience.
+
+- **Notifications and Home** ("waiting for you", "waiting on …"), the band layout's
+  count, the Questions page's "waiting for me" filter, the About page's cards and the
+  summary's per-group counts all follow it.
+- **The People page** offers every audience and every addressee as a Group, so a
+  person can be put in `platform-team` whether it is declared as one or the other.
+- **The MCP** `list_questions` gains a `waiting_on` filter and returns `waiting_on`
+  for each question; the chat's catalog says who each is for.
+- **Why:** an instance can now move its addressing into `to=` and keep its audiences
+  for visibility, which is what a move to Databook needs (Databook's audience is
+  exactly `public` or `members`).
+
+**Instances:** undatacommons-collab and comms-strat see no change on taking it
+unless they write `to=`.
+
+Tests: 441 → 448 (`worker/test/waits.test.js`; two notification tests in
+`worker/test/api.test.js` that fail when the notification count goes back to the audience).
+
 ## v1.10.0 — Addressing: who a question is waiting on, apart from its audience
 
 **The compiler's output changes, but only for a project that uses it.** No

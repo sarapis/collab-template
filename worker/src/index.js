@@ -12,6 +12,7 @@ import { handleChat, listSessions, readSession, enforceRetention } from './chat.
 import { handleAdmin } from './admin.js';
 import { handleContent } from './content.js';
 import { isBand, bandPage, wrapBuilt, viewEnv, viewFor, publicIndexFor, hostOf } from './band.js';
+import { groupName, waitsOn, waitsOnAny } from './waits.js';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
@@ -152,7 +153,7 @@ async function getNotifications(request, env, me) {
   const items = [];
   const open = (manifest?.questions || []).filter((q) => !q.resolved && !q.hidden);
 
-  const mine = open.filter((q) => me.audiences.includes(q.audience) && !answeredByMe(q));
+  const mine = open.filter((q) => waitsOnAny(q, me.audiences) && !answeredByMe(q));
   if (mine.length) {
     const fresh = mine.filter((q) => manifest.asked_rounds?.[q.asked]?.new).length;
     // ⚠️ A question counts as unseen while the round that asked it is newer than
@@ -199,9 +200,9 @@ async function getNotifications(request, env, me) {
       });
     }
 
-    const waitingOnOthers = open.filter((q) => !answeredByAnyone(q) && !me.audiences.includes(q.audience));
+    const waitingOnOthers = open.filter((q) => !answeredByAnyone(q) && !waitsOnAny(q, me.audiences));
     if (waitingOnOthers.length) {
-      const who = [...new Set(waitingOnOthers.map((q) => manifest.audiences?.[q.audience]?.name || q.audience))];
+      const who = [...new Set(waitingOnOthers.flatMap((q) => waitsOn(q).map((g) => groupName(manifest, g))))];
       items.push({
         // Somebody else's backlog is a standing state, never news.
         kind: 'others', forYou: false, count: waitingOnOthers.length, unseen: 0, href: '/questions/?open=1',

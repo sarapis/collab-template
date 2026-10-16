@@ -11,11 +11,12 @@
 import { viewEnv } from './band.js';
 import { flag } from './flag.js';
 import { canRead } from './identity.js';
+import { waitsOn } from './waits.js';
 
 const TOOLS = [
   { name: 'list_documents', description: 'Every document in this project, with its sections.', inputSchema: { type: 'object', properties: {} } },
   { name: 'read_document', description: 'The markdown source of one document, as a contributor would edit it.', inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] } },
-  { name: 'list_questions', description: 'The question catalog with its answers. Filter by open and audience.', inputSchema: { type: 'object', properties: { open: { type: 'boolean' }, audience: { type: 'string' } } } },
+  { name: 'list_questions', description: 'The question catalog with its answers. Filter by open, audience, or who a question is waiting on.', inputSchema: { type: 'object', properties: { open: { type: 'boolean' }, audience: { type: 'string' }, waiting_on: { type: 'string', description: 'A group or addressee key' } } } },
   { name: 'read_question', description: 'One question, its provenance, and every answer with edit history.', inputSchema: { type: 'object', properties: { number: { type: 'number' }, slug: { type: 'string' } } } },
   { name: 'post_answer', description: 'Answer a question as the authenticated person. Say what you are posting first.', inputSchema: { type: 'object', properties: { slug: { type: 'string' }, body: { type: 'string' } }, required: ['slug', 'body'] } },
   { name: 'list_comments', description: 'What users have said unprompted, newest last. Read this before deciding what to work on.', inputSchema: { type: 'object', properties: { doc: { type: 'string' }, since: { type: 'string' } } } },
@@ -74,9 +75,10 @@ async function call(name, args, env, request, me, handlers) {
       let qs = m.questions.filter((q) => !q.hidden);
       if (args.open) qs = qs.filter((q) => !q.resolved);
       if (args.audience) qs = qs.filter((q) => q.audience === args.audience);
+      if (args.waiting_on) qs = qs.filter((q) => waitsOn(q).includes(args.waiting_on));
       const answers = await answersFor(env, qs.map((q) => q.id));
       return text(qs.map((q) => ({
-        number: q.number, slug: q.slug, audience: q.audience, group: q.group, asked: q.asked,
+        number: q.number, slug: q.slug, audience: q.audience, waiting_on: waitsOn(q), group: q.group, asked: q.asked,
         document: q.doc, section: q.section, resolved: q.resolved || null,
         question: q.body.replace(/<[^>]+>/g, '').trim(),
         why_asked: q.why ? q.why.replace(/<[^>]+>/g, '').trim() : null,

@@ -8,6 +8,7 @@
 import { listPeople, record, readLog, validRole, ROLES, isRoot } from './people.js';
 import { handleSecrets, MANAGEABLE } from './secrets.js';
 import { viewEnv } from './band.js';
+import { declaredGroups } from './waits.js';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
@@ -28,7 +29,8 @@ async function configuredGroups(request, env, me) {
   const m = await viewEnv(request, env, me).ASSETS?.fetch(new Request(new URL('/manifest.json', request.url)))
     .then((r) => (r.ok ? r.json() : null)).catch(() => null);
   if (!m) return null;
-  return Object.entries(m.audiences || {}).map(([id, a]) => ({ id, name: a?.name || id, describes: a?.describes || '' }));
+  // Audiences and addressees (v1.11.0): a person is put in whatever a question can wait on.
+  return declaredGroups(m);
 }
 
 const groupList = (v) => (Array.isArray(v) ? [...new Set(v.map((x) => String(x).trim()).filter(Boolean))] : []);

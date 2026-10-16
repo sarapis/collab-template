@@ -112,8 +112,10 @@ no `data-to`), so its digest does not move.
 
 - **Databook** reads `to` as addressing and `audience` as visibility, so a
   public question can wait on a named group without hiding it.
-- **The Worker host** does not read `to` yet: it still reads the audience as
-  addressing (below), and a `to=` there changes only the margin's label.
+- **The Worker host** (v1.11.0) reads `to` as addressing when a question has it,
+  and its audience otherwise (`worker/src/waits.js`), so a site that never writes
+  `to=` behaves as before. A person's Groups (People page) can be any audience or
+  addressee.
 
 ### Audience semantics
 

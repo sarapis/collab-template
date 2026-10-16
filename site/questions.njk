@@ -21,11 +21,12 @@ permalink: /questions/
 <div class="cards">
 {% for q in manifest.questions | where_group(group) %}
   <article class="card {% if q.resolved %}resolved{% else %}open{% endif %}"
-     id="q{{ q.number }}" data-question="{{ q.id }}" data-audience="{{ q.audience }}"
+     id="q{{ q.number }}" data-question="{{ q.id }}" data-audience="{{ q.audience }}" data-waits-on="{{ (q.to if (q.to and q.to.length) else [q.audience]) | join(' ') }}"
      data-resolved="{{ 'true' if q.resolved else 'false' }}" data-asked="{{ q.asked }}">
     <header class="q-head">
       <a class="q-num" href="/{{ q.doc }}/{% if q.margin %}#q{{ q.number }}{% endif %}">Q{{ q.number }}</a>
       <span class="q-audience">{{ q.audience }}</span>
+      {% if q.to and q.to.length %}<span class="q-to">to {% for g in q.to %}{{ g | group_name(manifest) }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
       {% if manifest.asked_rounds[q.asked].new %}<span class="q-audience">· new this round</span>{% endif %}
     </header>
     <div class="q-body">{{ q.body | safe }}</div>
