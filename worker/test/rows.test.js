@@ -324,3 +324,109 @@ test('pull mode: the instance’s own export workflow stands down; push mode sti
     assert.match(target(null), /^enabled=true\nrepo=o\/r\npath=docs\/collab/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+// --- batch saves and moves (POST /api/content/batch) -----------------------
+
+const batch = (env, b, who = EDITOR) => body(env, send('POST', '/api/content/batch', who, b));
+const numbers = (v) => Object.fromEntries(v.manifest.questions.map((q) => [q.slug, [q.number, q.id]]));
+const liveView = async (env) => {
+  const id = (await body(env, get('/api/version', ADMIN))).j.id;
+  return JSON.parse((await env.DB.prepare('SELECT payload FROM site_versions WHERE id = ?').bind(id).first()).payload);
+};
+
+test('a move cannot be two item saves: the copy and the original share question slugs', async () => {
+  // The reason the batch route exists. Either half alone fails to compile.
+  const { env } = await rowsSite();
+  const it = await item(env, 'content/plan.md');
+  const copy = await body(env, send('PUT', '/api/content/item', EDITOR, { path: 'content/guides/plan.md', base_revision: 0, body: it.body }));
+  assert.equal(copy.r.status, 422, JSON.stringify(copy.j));
+});
+
+test('a batch moves a document: numbers, answers and comments follow it, history stays', async () => {
+  const { env } = await rowsSite();
+  const before = numbers(await liveView(env));
+  const it = await item(env, 'content/plan.md');
+  await env.DB.prepare("INSERT INTO comments (id, thread, doc, section, author_sub, author_name, body, created_at) VALUES ('c1', 'general', 'plan', 'measure', 'x', 'X', 'on the plan', 'now')").run();
+
+  const r = await batch(env, { moves: [{ from: 'content/plan.md', to: 'content/guides/plan.md', base_revision: it.revision }] });
+  assert.equal(r.r.status, 200, JSON.stringify(r.j));
+
+  // Question ids are project:slug and the lock keys numbers by slug, so a
+  // document's questions are the same questions after it moves.
+  const after = await liveView(env);
+  assert.deepEqual(numbers(after), before);
+  assert.equal(after.manifest.questions.find((q) => q.slug === 'first-audience').doc, 'guides/plan');
+  assert.equal((await item(env, 'content/plan.md')).error, 'no such item', 'the old row is gone');
+  const moved = await item(env, 'content/guides/plan.md');
+  assert.equal(moved.body, it.body);
+  assert.equal(moved.status, it.status);
+  assert.equal((await env.DB.prepare("SELECT doc FROM comments WHERE id = 'c1'").first()).doc, 'guides/plan');
+  const history = (await body(env, get('/api/content/revisions?path=content%2Fplan.md', EDITOR))).j.revisions;
+  assert.equal(history[0].note, 'moved to content/guides/plan.md', 'the old path records why it ended');
+  assert.equal((await go(env, get('/guides/plan/', ADMIN))).status, 200);
+  assert.equal((await go(env, get('/plan/', ADMIN))).status, 404);
+});
+
+test('a moved site still round-trips: the export compiles to the live digest', async () => {
+  const { env } = await rowsSite();
+  const it = await item(env, 'content/plan.md');
+  await batch(env, { moves: [{ from: 'content/plan.md', to: 'content/guides/plan.md', base_revision: it.revision }] });
+  const ex = (await body(env, get('/api/content/export', null, { headers: { authorization: `Bearer ${TOKEN}` } }))).j;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'collab-export-'));
+  try {
+    for (const [f, text] of Object.entries(ex.files)) {
+      fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+      fs.writeFileSync(path.join(dir, f), text);
+    }
+    assert.equal(ex.files['content/plan.md'], undefined);
+    const r = compile({ root: dir });
+    assert.deepEqual(r.errors, []);
+    assert.equal(digest(r.manifest, r.fragments, sourcesOf(dir, r.manifest)), ex.live.digest);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('one stale path refuses the whole batch and nothing is written', async () => {
+  const { env } = await rowsSite();
+  const plan = await item(env, 'content/plan.md');
+  const summary = await item(env, 'content/summary.md');
+  const before = { revs: await count(env, 'content_revisions'), versions: await count(env, 'site_versions') };
+  const r = await batch(env, { changes: [
+    { path: 'content/summary.md', base_revision: summary.revision, body: summary.body + '\nEdited.\n' },
+    { path: 'content/plan.md', base_revision: plan.revision - 1, body: plan.body + '\nStale.\n' },
+  ] });
+  assert.equal(r.r.status, 409);
+  assert.match(r.j.error, /content\/plan\.md/);
+  assert.deepEqual({ revs: await count(env, 'content_revisions'), versions: await count(env, 'site_versions') }, before);
+  assert.equal((await item(env, 'content/summary.md')).body, summary.body);
+});
+
+test('a batch that does not compile writes nothing, the move included', async () => {
+  const { env } = await rowsSite();
+  const plan = await item(env, 'content/plan.md');
+  const summary = await item(env, 'content/summary.md');
+  const before = { items: await count(env, 'content_items'), revs: await count(env, 'content_revisions'), versions: await count(env, 'site_versions') };
+  const r = await batch(env, {
+    moves: [{ from: 'content/plan.md', to: 'content/guides/plan.md', base_revision: plan.revision }],
+    changes: [{ path: 'content/summary.md', base_revision: summary.revision, body: summary.body + '\n:::question{slug=first-audience audience=team group=scope asked=r1}\nA duplicate slug.\n:::\n' }],
+  });
+  assert.equal(r.r.status, 422, JSON.stringify(r.j));
+  assert.deepEqual({ items: await count(env, 'content_items'), revs: await count(env, 'content_revisions'), versions: await count(env, 'site_versions') }, before);
+  assert.equal((await item(env, 'content/plan.md')).body, plan.body, 'the original is still there');
+});
+
+test('a batch refuses a move onto an existing path, a path twice, and About', async () => {
+  const { env } = await rowsSite();
+  const plan = await item(env, 'content/plan.md');
+  const onto = await batch(env, { moves: [{ from: 'content/plan.md', to: 'content/summary.md', base_revision: plan.revision }] });
+  assert.equal(onto.r.status, 400);
+  assert.match(onto.j.error, /already exists/);
+  const twice = await batch(env, {
+    moves: [{ from: 'content/plan.md', to: 'content/guides/plan.md', base_revision: plan.revision }],
+    changes: [{ path: 'content/plan.md', base_revision: plan.revision, body: 'x' }],
+  });
+  assert.equal(twice.r.status, 400);
+  assert.match(twice.j.error, /twice/);
+  const about = await batch(env, { moves: [{ from: 'README.md', to: 'content/about.md', base_revision: 1 }] });
+  assert.equal(about.r.status, 400);
+  assert.equal((await go(env, send('POST', '/api/content/batch', READER, { changes: [{ path: 'content/plan.md', base_revision: 1, body: 'x' }] }))).status, 403);
+});

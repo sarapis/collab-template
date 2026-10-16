@@ -30,6 +30,8 @@ export const STATUSES = ['published', 'members', 'draft', 'archived'];
 // ⚠️ D1 refuses a row over 2,000,000 bytes. A version that would not fit is
 // refused with a sentence, not a D1 error nobody can read.
 const MAX_PAYLOAD = 1_900_000;
+// One batch is one compile and one D1 batch; D1 caps a batch's statements.
+const MAX_BATCH = 50;
 
 const configText = (env) => env.COLLAB_CONFIG_TEXT ?? CONFIG_TEXT;
 
@@ -134,13 +136,22 @@ export async function build(rows, config) {
     payload: { manifest: r.manifest, fragments: r.fragments, sections: r.sections, sources, statuses, lockText: r.lockText } };
 }
 
-// Apply `changes` ({path, body, status}) to the rows, compile, and write
-// everything in one batch. Returns { ok, version, digest } or { ok:false, status, errors }.
-export async function commit(env, me, changes, reason) {
+// Apply `changes` ({path, body, status} or {path, delete: true}) to the rows,
+// compile, and write everything in one batch, with `extra` statements (a move's
+// comment re-pointing) inside the same batch. Returns { ok, version, digest } or
+// { ok:false, status, errors }.
+export async function commit(env, me, changes, reason, extra = []) {
   const rows = await readRows(env);
   const byPath = new Map(rows.map((r) => [r.path, { ...r }]));
+  const deleted = new Map();
   for (const c of changes) {
     const prev = byPath.get(c.path);
+    if (c.delete) {
+      if (!prev) return { ok: false, status: 404, errors: [`${c.path} does not exist, so it cannot be removed.`] };
+      byPath.delete(c.path);
+      deleted.set(c.path, prev);
+      continue;
+    }
     byPath.set(c.path, { path: c.path, status: c.status ?? prev?.status ?? 'published', body: c.body ?? prev?.body ?? '',
       revision: (prev?.revision || 0) + 1, prev });
   }
@@ -166,6 +177,16 @@ export async function commit(env, me, changes, reason) {
   const id = Number(head?.n || 0) + 1;
   const stmts = [];
   for (const c of changes) {
+    if (c.delete) {
+      // ⚠️ The row goes; its history does not. The last revision is written
+      // again with the note, so the path's record ends with why it ended, and
+      // its (path, revision) key makes a racing save collide here like any other.
+      const prev = deleted.get(c.path);
+      stmts.push(env.DB.prepare('DELETE FROM content_items WHERE path = ?').bind(c.path));
+      stmts.push(env.DB.prepare('INSERT INTO content_revisions (path, revision, status, body, saved_at, saved_by, note) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(c.path, (prev.revision || 0) + 1, prev.status, prev.body, at, me.sub, c.note || reason || null));
+      continue;
+    }
     const r = byPath.get(c.path);
     stmts.push(env.DB.prepare(`INSERT INTO content_items (path, status, body, revision, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(path) DO UPDATE SET status = excluded.status, body = excluded.body, revision = excluded.revision,
@@ -175,6 +196,7 @@ export async function commit(env, me, changes, reason) {
   }
   stmts.push(env.DB.prepare('INSERT INTO site_versions (id, digest, created_at, created_by, created_by_name, reason, payload) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .bind(id, b.digest, at, me.sub, me.name || me.sub, reason || null, payload));
+  stmts.push(...extra);
   stmts.push(...movePointer(env, id, me, reason, at));
   try {
     await env.DB.batch(stmts);
@@ -294,6 +316,77 @@ export async function handleContent(request, env, me, url) {
     }
     if (!row && b.body == null) return json({ error: 'a new item needs a body' }, 400);
     const r = await commit(env, me, [{ path, body: b.body ?? undefined, status: b.status ?? undefined, note: b.note }], b.note || `saved ${path}`);
+    return r.ok ? json(r) : json({ error: r.errors[0], errors: r.errors }, r.status);
+  }
+
+  // Several items in ONE version: edits, and moves of a document to a new
+  // path. It exists because a move cannot be two saves. The copy at the new
+  // path and the original carry the same question slugs, so the first save of
+  // either half does not compile — and an item save is all a site had.
+  //   { note, changes: [{ path, base_revision, body?, status? }],
+  //           moves:   [{ from, to, base_revision, body? }] }
+  // Every path is checked against the revision the editor opened, as an item
+  // save is; one stale path refuses the whole batch. A move keeps the status
+  // and the question numbers (the lock keys them by slug, not by document),
+  // re-points the document's comments, and removes the old row with its
+  // history kept. ⚠️ It does not redirect the old URL, and the compiler does
+  // not check links: a link to the old path, inside the site or out, breaks
+  // silently. Edit the site's own links to it in the same batch.
+  if (p === '/api/content/batch' && m === 'POST') {
+    const b = await bodyOf(request);
+    const changes = Array.isArray(b?.changes) ? b.changes : [];
+    const moves = Array.isArray(b?.moves) ? b.moves : [];
+    if (!changes.length && !moves.length) return json({ error: 'a batch needs changes or moves' }, 400);
+    if (changes.length + moves.length > MAX_BATCH) return json({ error: `at most ${MAX_BATCH} items in one batch` }, 400);
+    const rows = new Map((await readRows(env)).map((r) => [r.path, r]));
+    const claimed = new Set();
+    const out = [];
+    const extra = [];
+    const problems = [];
+    const stale = [];
+    const claim = (path) => {
+      if (claimed.has(path)) { problems.push(`${path} appears twice in this batch`); return false; }
+      claimed.add(path);
+      return true;
+    };
+    const fresh = (path, base) => {
+      const have = rows.get(path)?.revision || 0;
+      if (have !== Number(base || 0)) stale.push(`${path} was revision ${Number(base || 0)} when you opened it; it is now ${have}`);
+    };
+    for (const c of changes) {
+      const path = String(c?.path || '');
+      if (!validPath(path)) { problems.push(`${path || '(no path)'}: a path is README.md or content/<name>.md, lowercase`); continue; }
+      if (!claim(path)) continue;
+      if (c.status != null && !STATUSES.includes(c.status)) problems.push(`${path}: status is one of ${STATUSES.join(', ')}`);
+      if (path === 'README.md' && c.status && c.status !== 'published') problems.push('About (README.md) is always published');
+      if (c.body != null && typeof c.body !== 'string') problems.push(`${path}: body is text`);
+      if (!rows.has(path) && c.body == null) problems.push(`${path}: a new item needs a body`);
+      fresh(path, c.base_revision);
+      out.push({ path, body: c.body ?? undefined, status: c.status ?? undefined, note: c.note });
+    }
+    for (const mv of moves) {
+      const from = String(mv?.from || '');
+      const to = String(mv?.to || '');
+      if (!validPath(from) || !validPath(to)) { problems.push(`${from || '?'} → ${to || '?'}: both paths are content/<name>.md, lowercase`); continue; }
+      if (from === 'README.md' || to === 'README.md') { problems.push('About (README.md) does not move'); continue; }
+      if (from === to) { problems.push(`${from}: a move needs a different path`); continue; }
+      if (!claim(from) || !claim(to)) continue;
+      const prev = rows.get(from);
+      if (!prev) { problems.push(`${from} does not exist`); continue; }
+      if (rows.has(to)) { problems.push(`${to} already exists; move it first or pick another path`); continue; }
+      if (mv.body != null && typeof mv.body !== 'string') problems.push(`${to}: body is text`);
+      fresh(from, mv.base_revision);
+      out.push({ path: to, body: mv.body ?? prev.body, status: prev.status, note: `moved from ${from}` });
+      out.push({ path: from, delete: true, note: `moved to ${to}` });
+      extra.push(env.DB.prepare('UPDATE comments SET doc = ? WHERE doc = ?').bind(slugOf(to), slugOf(from)));
+    }
+    if (problems.length) return json({ error: problems[0], errors: problems }, 400);
+    if (stale.length) return json({ error: `${stale[0]}. Reload before saving; nothing was written.`, errors: stale }, 409);
+    const summary = [
+      moves.length ? `moved ${moves.map((mv) => `${mv.from} → ${mv.to}`).join(', ')}` : '',
+      changes.length ? `saved ${changes.map((c) => c.path).join(', ')}` : '',
+    ].filter(Boolean).join('; ');
+    const r = await commit(env, me, out, b.note || summary, extra);
     return r.ok ? json(r) : json({ error: r.errors[0], errors: r.errors }, r.status);
   }
 

@@ -50,6 +50,7 @@ export const ROUTES = [
   { method: 'GET',   path: '/api/content' },
   { method: 'GET',   path: '/api/content/item' },
   { method: 'PUT',   path: '/api/content/item' },
+  { method: 'POST',  path: '/api/content/batch' },
   { method: 'PATCH', path: '/api/content/question' },
   { method: 'POST',  path: '/api/content/preview' },
   { method: 'GET',   path: '/api/content/revisions' },
