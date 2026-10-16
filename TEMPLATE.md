@@ -41,7 +41,7 @@ two codebases.
 | --- | --- |
 | `project` | `id`, `name`, `tagline`, and anything a host reads (see HOST-CONTRACT.md) |
 | `auth.read` | `private` (the default) or `public`. Keep it in step with `PUBLIC_READ` in `wrangler.jsonc` |
-| `audiences`, `asked_rounds`, `references` | What questions may be addressed to, when each round opened, and named outside links |
+| `audiences`, `asked_rounds`, `references` | What questions may be addressed to (shown on `/admin/people/` as **Groups**, one checkbox each), when each round opened, and named outside links |
 | `public` | What `/llms.txt` says: `repo`, `contact` (a team, never a person's address), `llms_txt: false` to publish nothing |
 | `chat` | `enabled`, `retention_days` |
 | `site.passthrough` | Self-contained pages copied as-is, `{from, to}`; the gate exempts them from layout checks, and refuses a `to` whose address is already a document's or a page's |
@@ -106,6 +106,13 @@ only if it compiles, inserts a version and moves the live pointer in one batch.
 A save that does not compile changes nothing and returns the compiler's errors.
 Preview shows an unsaved edit under a Draft banner. Making an earlier version
 live is a rollback; restoring a revision is a save.
+
+`POST /api/content/batch` saves several items as one version, and is the only
+way to move a document to a new path (`moves: [{from, to, base_revision}]`): the
+copy and the original share question slugs, so a move as two saves never
+compiles. Question numbers, answers and comments follow the document; the old
+URL is not redirected, and the compiler does not check links, so edit the site's
+own links to it in the same batch.
 
 To switch an instance:
 

@@ -3,6 +3,44 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.9.0 — Groups on the People page, and moving a document
+
+**`worker/schema.sql` is unchanged.** No setting changes, and the compiler's
+output is unchanged (`git diff v1.8.1 v1.9.0 -- packages/compile` is empty), so
+a host that pins only the compiler needs nothing from this release.
+
+**Groups.** `/admin/people/` called a person's audiences "Answers as" and took
+them as free text. A typo (`owners`) was stored without complaint and matched no
+question, so that person's Home read "0 waiting for you" and nothing said why.
+The column and the form now say **Groups** and offer one checkbox per group
+`site.config.yml` defines (its `audiences`, with each one's `describes` as the
+hover text). The API refuses a name the site does not define and names the real
+ones; a group the person already has still passes, so a renamed one can be
+removed. If the manifest cannot be read the page falls back to the old text box
+rather than locking the roster. Storage, the manifest and the MCP keep the word
+`audiences`; new log entries read "groups changed".
+
+**The deployed-with account can be edited.** It is listed without a row in the
+table, so every change to it — its groups included — answered 404 "no such
+person", and the owner could not be put in a group at all. Its first edit now
+gives it a row (logged as "added"); it stays an admin whatever the row says.
+
+**`POST /api/content/batch`** (rows sites). Several edits as one version, and
+moves: `{ note, changes: [{path, base_revision, body?, status?}], moves: [{from,
+to, base_revision, body?}] }`. A move could not be done before: the copy at the
+new path and the original carry the same question slugs, so neither save
+compiled. Every path is checked against the revision the editor opened and one
+stale path refuses the batch; one compile, one D1 batch, all or nothing. A move
+keeps the status and the question numbers (the lock keys them by slug, and
+question ids are `project:slug`), re-points the document's comments, and removes
+the old row with its revisions kept and a last revision noting where it went.
+⚠️ It does not redirect the old URL, and the compiler does not check links.
+
+Tests: 426 → 436 (`worker/test/admin.test.js`, `worker/test/rows.test.js`);
+each new guard fails when its bug is put back. Checked under `wrangler dev
+--local` on a band+rows copy: groups listed, a typo refused, the root put in a
+group, a document moved (new page 200, old 404) and a stale batch writing nothing.
+
 ## v1.8.1 — A fix: a failed figures export no longer overwrites the last good one
 
 **`worker/schema.sql` is unchanged.** No setting changes, and the compiler's
