@@ -7,12 +7,43 @@
 
 import { listPeople, record, readLog, validRole, ROLES, isRoot } from './people.js';
 import { handleSecrets, MANAGEABLE } from './secrets.js';
+import { viewEnv } from './band.js';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 
 const clean = (e) => String(e || '').trim().toLowerCase();
 const looksLikeEmail = (e) => /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(e);
+
+// The groups a person can belong to: site.config.yml `audiences`, read from the
+// live manifest, which is what addresses every question to one of them. On the
+// page they are "Groups"; in storage and in the manifest they stay `audiences`.
+//
+// ⚠️ null means the manifest could not be read, which is NOT the same as a site
+// with no groups. It was a free-text field, and a typo (`owners`) was stored
+// without complaint and then matched no question, so the person's queue read 0
+// and nothing said why. Checking against the list closes that; refusing every
+// roster edit because the manifest was briefly unreadable would be worse.
+async function configuredGroups(request, env, me) {
+  const m = await viewEnv(request, env, me).ASSETS?.fetch(new Request(new URL('/manifest.json', request.url)))
+    .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  if (!m) return null;
+  return Object.entries(m.audiences || {}).map(([id, a]) => ({ id, name: a?.name || id, describes: a?.describes || '' }));
+}
+
+const groupList = (v) => (Array.isArray(v) ? [...new Set(v.map((x) => String(x).trim()).filter(Boolean))] : []);
+
+// ⚠️ A group the person ALREADY has passes even if the site no longer defines
+// it, so removing one group never fails over another that was renamed away.
+function unknownGroups(list, groups, kept = []) {
+  if (!groups) return [];
+  const ok = new Set([...groups.map((g) => g.id), ...kept]);
+  return list.filter((g) => !ok.has(g));
+}
+
+const notAGroup = (bad, groups) => json({
+  error: `not a group on this site: ${bad.join(', ')}. The groups are ${groups.map((g) => g.id).join(', ') || '(none defined)'}.`,
+}, 400);
 
 function refuse(me) {
   if (!me.authenticated) return json({ error: 'not signed in' }, 401);
@@ -69,7 +100,7 @@ export async function handleAdmin(request, env, me, url) {
 
   if (p === '/api/admin/people' && method === 'GET') {
     const people = await listPeople(env);
-    return json({ people, roles: ROLES, you: me.email, orphans: await orphanIdentities(env, people) });
+    return json({ people, roles: ROLES, groups: await configuredGroups(request, env, me), you: me.email, orphans: await orphanIdentities(env, people) });
   }
 
   if (p === '/api/admin/log' && method === 'GET') {
@@ -97,11 +128,16 @@ export async function handleAdmin(request, env, me, url) {
     const email = clean(body?.email);
     const name = String(body?.name || '').trim();
     const role = String(body?.role || 'user');
-    const audiences = Array.isArray(body?.audiences) ? body.audiences : [];
+    const audiences = groupList(body?.audiences);
 
     if (!looksLikeEmail(email)) return json({ error: 'that does not look like an email address' }, 400);
     if (!name) return json({ error: 'a name is required — it is what other people see on an answer' }, 400);
     if (!validRole(role)) return json({ error: `role must be one of ${ROLES.join(', ')}` }, 400);
+    if (audiences.length) {
+      const groups = await configuredGroups(request, env, me);
+      const bad = unknownGroups(audiences, groups);
+      if (bad.length) return notAGroup(bad, groups);
+    }
 
     const existing = await env.DB.prepare('SELECT email FROM users WHERE email = ?').bind(email).first();
     if (existing) return json({ error: 'that address is already on the roster' }, 409);
@@ -116,10 +152,21 @@ export async function handleAdmin(request, env, me, url) {
   const match = p.match(/^\/api\/admin\/people\/(.+)$/);
   if (match) {
     const email = clean(decodeURIComponent(match[1]));
-    const row = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
+    let row = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
 
     if (method === 'PATCH') {
       const body = await request.json().catch(() => null);
+      // ⚠️ The deployed-with account is listed on the page without a row in the
+      // table (people.js), so every edit to it used to answer "no such person"
+      // and the owner could not be put in a group at all. Give it a row on its
+      // first edit; it stays an admin whatever the row says.
+      if (!row && isRoot(env, email)) {
+        await env.DB.prepare(
+          'INSERT INTO users (email, name, role, audiences, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(email, 'Owner', 'admin', '[]', new Date().toISOString(), me.email).run();
+        await record(env, me.email, 'added', email, 'the deployed-with account, given a row on its first edit');
+        row = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
+      }
       if (!row) return json({ error: 'no such person' }, 404);
 
       if (body?.role !== undefined) {
@@ -140,11 +187,16 @@ export async function handleAdmin(request, env, me, url) {
       }
 
       if (body?.audiences !== undefined) {
-        const next = JSON.stringify(Array.isArray(body.audiences) ? body.audiences : []);
+        const list = groupList(body.audiences);
+        const had = (() => { try { return JSON.parse(row.audiences || '[]'); } catch { return []; } })();
+        const groups = list.length ? await configuredGroups(request, env, me) : null;
+        const bad = unknownGroups(list, groups, had);
+        if (bad.length) return notAGroup(bad, groups);
+        const next = JSON.stringify(list);
         const wasAudiences = row.audiences;
         if (next !== wasAudiences) {
           await env.DB.prepare('UPDATE users SET audiences = ? WHERE email = ?').bind(next, email).run();
-          await record(env, me.email, 'audiences_changed', email, `${wasAudiences} → ${next}`);
+          await record(env, me.email, 'groups_changed', email, `${wasAudiences} → ${next}`);
         }
       }
 

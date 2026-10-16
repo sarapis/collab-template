@@ -381,3 +381,58 @@ test('one Google credential is not enough to offer the button', async () => {
   const page = await worker.fetch(new Request('https://x/auth/login'), site).then((r) => r.text());
   assert.equal(/Continue with Google/.test(page), false);
 });
+
+// --- groups (stored as `audiences`) -----------------------------------------
+
+const withGroups = (DB) => env(DB, {
+  ASSETS: { fetch: async () => new Response(JSON.stringify({
+    questions: [], audiences: { owner: { name: 'The project owner', describes: 'Scope.' }, developers: { name: 'Developers' } },
+  }), { status: 200 }) },
+});
+
+test('the roster lists the groups the site defines, for the page to offer as choices', async () => {
+  const data = await worker.fetch(as('devin@example.org', '/api/admin/people'), withGroups(db(PEOPLE))).then((r) => r.json());
+  assert.deepEqual(data.groups, [
+    { id: 'owner', name: 'The project owner', describes: 'Scope.' },
+    { id: 'developers', name: 'Developers', describes: '' },
+  ]);
+});
+
+test('a group the site does not define is refused, and the reason names the real ones', async () => {
+  const DB = db(PEOPLE);
+  const r = await worker.fetch(as('devin@example.org', '/api/admin/people/olivia@example.org', 'PATCH',
+    { audiences: ['owners'] }), withGroups(DB));
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /owners.*owner, developers/);
+  assert.equal(DB.rows.users.find((u) => u.email === 'olivia@example.org').audiences, '["olivia"]');
+
+  const add = await worker.fetch(as('devin@example.org', '/api/admin/people', 'POST',
+    { name: 'Sam', email: 'sam@example.org', role: 'user', audiences: ['typo'] }), withGroups(DB));
+  assert.equal(add.status, 400);
+  assert.equal(DB.rows.users.some((u) => u.email === 'sam@example.org'), false);
+});
+
+test('a group the person already has passes even after the site stopped defining it', async () => {
+  // Olivia is in `olivia`, which withGroups does not define. Adding a real group
+  // must not fail over the old one; dropping it must work too.
+  const DB = db(PEOPLE);
+  const r = await worker.fetch(as('devin@example.org', '/api/admin/people/olivia@example.org', 'PATCH',
+    { audiences: ['olivia', 'developers'] }), withGroups(DB));
+  assert.equal(r.status, 200);
+  assert.equal(DB.rows.users.find((u) => u.email === 'olivia@example.org').audiences, '["olivia","developers"]');
+  const log = DB.rows.membership_log.at(-1);
+  assert.equal(log.action, 'groups_changed');
+});
+
+test('the deployed-with account can be put in a group although it has no row', async () => {
+  // It is listed (people.js) without being in the table, and every PATCH to it
+  // used to answer 404 "no such person".
+  const DB = db([]);
+  const r = await worker.fetch(as('devin@example.org', '/api/admin/people/devin@example.org', 'PATCH',
+    { audiences: ['owner'] }), withGroups(DB));
+  assert.equal(r.status, 200);
+  const me = await worker.fetch(as('devin@example.org', '/api/me'), withGroups(DB)).then((x) => x.json());
+  assert.deepEqual(me.audiences, ['owner']);
+  assert.equal(me.role, 'admin');
+  assert.deepEqual(DB.rows.membership_log.map((e) => e.action), ['added', 'groups_changed']);
+});

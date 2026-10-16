@@ -8,7 +8,7 @@ permalink: /admin/people/
 
 <div id="admin-people" hidden>
   <table class="people"><thead>
-    <tr><th>Name</th><th>Email</th><th>Role</th><th>Answers as</th><th></th></tr>
+    <tr><th>Name</th><th>Email</th><th>Role</th><th>Groups</th><th></th></tr>
   </thead><tbody id="people-rows"></tbody></table>
 
   {# ⚠️ Hidden until there is something to say. An empty warning that lives on
@@ -47,9 +47,10 @@ permalink: /admin/people/
       </select>
     </div>
     <div class="field">
-      <label for="p-audiences">Answers as</label>
-      <input id="p-audiences" name="audiences" placeholder="comma separated, e.g. devin">
-      <p class="hint">Which questions are addressed to them. Leave empty if none are.</p>
+      <span class="label" id="p-groups-label">Groups</span>
+      <div id="p-groups" aria-labelledby="p-groups-label"></div>
+      <p class="hint">Each question is addressed to one group; a person's home page counts the open
+        questions addressed to their groups. Leave all unticked if none are theirs. Groups grant no access.</p>
     </div>
     <button class="btn" type="submit">Add</button>
   </form>
