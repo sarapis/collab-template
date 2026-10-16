@@ -20,6 +20,8 @@
 // menu-admin, rail-switch, rail, rail-contents, rail-comments, q-filters, ...)
 // are the classic layout's, so collab.js works on both unchanged.
 
+import { groupDescribes, groupName, openByGroup, waitsOn } from './waits.js';
+
 export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
   .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -270,13 +272,9 @@ ${footer(version)}${chatPanel}
 
 const fragment = (version, slug) => version.fragments?.[slug] || '';
 
+// Open questions per group they wait on (waits.js): `to=` when a question has it.
 export function openByAudience(m) {
-  const counts = new Map();
-  for (const q of m.questions) {
-    if (q.resolved || q.hidden) continue;
-    counts.set(q.audience, (counts.get(q.audience) || 0) + 1);
-  }
-  return [...counts.entries()].map(([audience, count]) => ({ audience, count })).sort((a, b) => b.count - a.count);
+  return openByGroup(m.questions);
 }
 
 // The activity feed's items, newest first. `live` carries what only the
@@ -357,8 +355,8 @@ export function questionsPage(version) {
     const see = (q.see || []).length ? `<p class="q-see">Context: ${q.see.map((r) => (r.kind === 'section'
       ? `<a href="/${esc(r.doc)}/#${esc(r.section)}" data-see-section="${esc(r.doc)}#${esc(r.section)}">${esc(r.title || r.section)}</a>`
       : `<a href="${esc(r.url)}" rel="noreferrer" target="_blank">${esc(r.label)} ↗</a>`)).join(' · ')}</p>` : '';
-    return `<article class="card ${q.resolved ? 'resolved' : 'open'}" id="q${q.number}" data-question="${esc(q.id)}" data-audience="${esc(q.audience)}" data-resolved="${q.resolved ? 'true' : 'false'}" data-asked="${esc(q.asked)}">
-<header class="q-head"><a class="q-num" href="/${esc(q.doc)}/${q.margin ? `#q${q.number}` : ''}">Q${q.number}</a> <span class="q-audience">${esc(q.audience)}</span>${m.asked_rounds?.[q.asked]?.new ? '<span class="q-audience">· new this round</span>' : ''}</header>
+    return `<article class="card ${q.resolved ? 'resolved' : 'open'}" id="q${q.number}" data-question="${esc(q.id)}" data-audience="${esc(q.audience)}" data-waits-on="${esc(waitsOn(q).join(' '))}" data-resolved="${q.resolved ? 'true' : 'false'}" data-asked="${esc(q.asked)}">
+<header class="q-head"><a class="q-num" href="/${esc(q.doc)}/${q.margin ? `#q${q.number}` : ''}">Q${q.number}</a> <span class="q-audience">${esc(q.audience)}</span>${q.to?.length ? ` <span class="q-to">to ${esc(q.to.map((g) => groupName(m, g)).join(', '))}</span>` : ''}${m.asked_rounds?.[q.asked]?.new ? '<span class="q-audience">· new this round</span>' : ''}</header>
 <div class="q-body">${q.body}</div>
 ${q.why ? `<div class="q-why"><strong>Why asked:</strong> ${q.why}</div>` : ''}${see}
 ${q.resolved ? `<p class="q-resolved-note">resolved · see <a href="/${esc(q.doc)}/${esc(q.resolved)}">this passage</a></p>` : ''}
@@ -420,7 +418,7 @@ export function aboutPage(version) {
 <p class="counts">${standing(version)}</p>
 <p class="counts">Every figure here is computed from the live version. None is typed.</p>
 <div class="cards">
-${rows.map((r) => `<article class="card open"><p class="counts">${esc(m.audiences?.[r.audience]?.name || r.audience)}</p><p><strong>${r.count}</strong> ${r.count === 1 ? 'question' : 'questions'} still open. ${esc(m.audiences?.[r.audience]?.describes || '')}</p></article>`).join('\n') || '<article class="card"><p>Nothing is open. Every question has been resolved.</p></article>'}
+${rows.map((r) => `<article class="card open"><p class="counts">${esc(groupName(m, r.audience))}</p><p><strong>${r.count}</strong> ${r.count === 1 ? 'question' : 'questions'} still open. ${esc(groupDescribes(m, r.audience))}</p></article>`).join('\n') || '<article class="card"><p>Nothing is open. Every question has been resolved.</p></article>'}
 </div>`;
 }
 

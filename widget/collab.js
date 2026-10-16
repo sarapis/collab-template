@@ -166,7 +166,9 @@
     cards.forEach(function (card) {
       var answers = currentAnswerCount(card);
       var resolved = card.getAttribute('data-resolved') === 'true';
-      var forMe = me && me.audiences && me.audiences.indexOf(card.getAttribute('data-audience')) !== -1;
+      // Who it waits on: `to=` when the question has it, else its audience (worker/src/waits.js).
+      var waits = (card.getAttribute('data-waits-on') || card.getAttribute('data-audience') || '').split(' ');
+      var forMe = !!(me && me.audiences && waits.some(function (g) { return me.audiences.indexOf(g) !== -1; }));
       var keep = true;
       if (show === 'waiting') keep = forMe && !answers && !resolved;
       else if (show === 'unanswered') keep = !answers && !resolved;

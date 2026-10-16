@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
+import { groupDescribes, groupName, openByGroup } from './worker/src/waits.js';
 
 // Eleventy is the reference HOST, not the product. It consumes what the
 // compiler emitted and knows nothing about question syntax -- which is the
@@ -93,15 +94,10 @@ export default function (eleventyConfig) {
 
   // Open questions per audience, so the summary can say who is holding what
   // without anybody typing a number that will rot.
-  eleventyConfig.addFilter('open_by_audience', (questions) => {
-    const counts = new Map();
-    for (const q of questions || []) {
-      if (q.resolved || q.hidden) continue;
-      counts.set(q.audience, (counts.get(q.audience) || 0) + 1);
-    }
-    return [...counts.entries()].map(([audience, count]) => ({ audience, count }))
-      .sort((a, b) => b.count - a.count);
-  });
+  // Per group a question waits on: `to=` when it has it (worker/src/waits.js).
+  eleventyConfig.addFilter('open_by_audience', (questions) => openByGroup(questions));
+  eleventyConfig.addFilter('group_name', (key, m) => groupName(m, key));
+  eleventyConfig.addFilter('group_describes', (key, m) => groupDescribes(m, key));
 
   eleventyConfig.addFilter('for_doc', (questions, slug) =>
     (questions || []).filter((q) => q.doc === slug));

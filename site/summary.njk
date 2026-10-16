@@ -39,13 +39,13 @@ typed, so none can rot.</p>
 <div class="cards">
 {% for row in audiences %}
   <article class="card open">
-    <p class="counts">{{ manifest.audiences[row.audience].name or row.audience }}</p>
+    <p class="counts">{{ row.audience | group_name(manifest) }}</p>
     <!-- ⚠️ "open" here means not yet folded into the prose, which is what the
          build can see. "Waiting" belongs to notifications and means something
          narrower -- not answered by you -- so using the word here would have the
          summary and the badge disagree in public. -->
     <p><strong>{{ row.count }}</strong> question{{ 's' if row.count != 1 }} still open.
-      {{ manifest.audiences[row.audience].describes }}</p>
+      {{ row.audience | group_describes(manifest) }}</p>
     <p><a href="/questions/?show=answered">See what is answered and not yet folded in →</a></p>
   </article>
 {% else %}

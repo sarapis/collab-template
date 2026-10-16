@@ -191,6 +191,7 @@ function withManifest(DB, questions) {
     DB, COLLAB_HOST: CLASSIC, AGENT_TOKENS: '{}', PUBLIC_READ: 'false', DEV_SIGN_IN: 'true',
     ASSETS: { fetch: async () => new Response(JSON.stringify({
       questions, audiences: { devin: { name: 'Devin' }, olivia: { name: 'Olivia' } },
+      addressees: { team: { name: 'The platform team' } },
       asked_rounds: { r1: { new: false, opened: '2026-09-16T00:00:00.000Z' },
                       r2: { new: true, opened: '2026-09-17T17:00:00.000Z' } },
     }), { status: 200 }) },
@@ -234,6 +235,21 @@ test('a question addressed to somebody else is not waiting for you', async () =>
   const n = await worker.fetch(as('devin@example.org', { path: '/api/notifications' }), e).then((r) => r.json());
   assert.equal(n.items.some((i) => i.kind === 'waiting'), false);
   assert.match(n.items.find((i) => i.kind === 'others').text, /waiting on Olivia/);
+});
+
+// --- addressing (v1.11.0): `to=` says who a question waits on, ahead of its audience ---
+
+test('a question addressed to you with to= waits on you, whatever its audience', async () => {
+  const e = withManifest(db(), [Q('p:a', 'olivia', { to: ['devin'] })]);
+  const n = await worker.fetch(as('devin@example.org', { path: '/api/notifications' }), e).then((r) => r.json());
+  assert.equal(n.items.find((i) => i.kind === 'waiting').count, 1);
+});
+
+test('a question addressed elsewhere with to= no longer waits on its audience', async () => {
+  const e = withManifest(db(), [Q('p:a', 'devin', { to: ['team'] })]);
+  const n = await worker.fetch(as('devin@example.org', { path: '/api/notifications' }), e).then((r) => r.json());
+  assert.equal(n.items.some((i) => i.kind === 'waiting'), false);
+  assert.match(n.items.find((i) => i.kind === 'others').text, /waiting on The platform team/);
 });
 
 test('the total counts only what is for you', async () => {

@@ -16,6 +16,7 @@ import { liveVersion, forViewer, statusOf, sourceByPath, readVersion, liveId, re
 import { canRead } from './identity.js';
 import { flag } from './flag.js';
 import * as R from './render.js';
+import { waitsOnAny } from './waits.js';
 
 export const hostOf = (env) => env.COLLAB_HOST || HOST;
 export const isBand = (env) => hostOf(env)?.settings?.layout === 'band';
@@ -75,7 +76,7 @@ export function viewEnv(request, env, me) {
 
 async function waitingFor(env, m, me) {
   if (!me?.authenticated) return null;
-  const mine = m.questions.filter((q) => !q.resolved && !q.hidden && (me.audiences || []).includes(q.audience));
+  const mine = m.questions.filter((q) => !q.resolved && !q.hidden && waitsOnAny(q, me.audiences));
   if (!mine.length) return 0;
   const { results } = await env.DB.prepare('SELECT question_id, MAX(created_at) AS latest FROM answers WHERE author_sub = ? GROUP BY question_id')
     .bind(me.sub).all().catch(() => ({ results: [] }));
