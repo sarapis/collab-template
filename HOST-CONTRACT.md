@@ -29,7 +29,7 @@ imports nothing from Node so a Worker can run it). The output is identical;
 
 | Path (under the project root) | Role |
 | --- | --- |
-| `site.config.yml` | `project` (passed through whole), `audiences`, `asked_rounds`, `references`. Other keys are the host's |
+| `site.config.yml` | `project` (passed through whole), `audiences`, `addressees` (optional), `asked_rounds`, `references`. Other keys are the host's |
 | `README.md` | Optional. Compiled as the document with slug `start`, `menu: project`, `nav: 0`, titled `project.name` unless its front matter says otherwise |
 | `content/**/*.md` | Documents. Slug = path without `.md` (and without a trailing `/index`) |
 | `content/questions.lock` | The frozen question numbers |
@@ -37,7 +37,7 @@ imports nothing from Node so a Worker can run it). The output is identical;
 Front matter a document may carry: `title`, `nav` (sort order), `nav_id`, `type`
 (default `doc`; the hosts use `post`, `decision`, `data`), `menu`, `partial: true`,
 `date`, `author`. Questions are `:::question{...}` blocks inside a section, with
-`slug`, `audience`, `group`, `asked`, and optionally `margin=false`,
+`slug`, `audience`, `group`, `asked`, and optionally `to="name, name"`, `margin=false`,
 `resolved=#anchor`, `hidden=true`, `see="#section, other-doc#section, reference-name"`.
 
 ### The call
@@ -56,9 +56,10 @@ number.
 | --- | --- |
 | `project` | `site.config.yml`'s `project`, unchanged. ⚠️ Hosts keep their own settings here (Databook: `artifacts`, `tools`, `groups`, `site_decisions`, `moved`, ...) and the compiler never reads or alters them |
 | `audiences` | The declared audiences, unchanged |
+| `addressees` | The declared addressees, unchanged. ABSENT when `site.config.yml` declares none |
 | `asked_rounds` | Each round with `opened` normalized to an ISO-8601 UTC timestamp. A round with no valid `opened` is an error |
 | `docs[]` | `{ slug, title, nav, nav_id, type, menu, partial, date, author, source, headings[] }`, sorted by `nav` then slug. `date` is a CALENDAR DAY, `YYYY-MM-DD`, formatted in UTC (an unquoted YAML date is a midnight-UTC Date), or `null`. `source` is `README.md` or the path under `content/`. `headings[]` is `{ level, id, text, explicit }` |
-| `questions[]` | Sorted by number. `{ id, slug, number, audience, group, asked, margin, resolved, hidden, doc, section, section_title, see[], body, why }`. `id` is `<project.id>:<slug>`. `body` and `why` are HTML. `see[]` holds `{kind:'section', doc, section, title}` or `{kind:'external', name, url, label}`, each checked at compile time |
+| `questions[]` | Sorted by number. `{ id, slug, number, audience, to?, group, asked, margin, resolved, hidden, doc, section, section_title, see[], body, why }`. `id` is `<project.id>:<slug>`. `to` is the list of addressee keys a question names, in its order, and is ABSENT (not empty) on a question with no `to=`. `body` and `why` are HTML. `see[]` holds `{kind:'section', doc, section, title}` or `{kind:'external', name, url, label}`, each checked at compile time |
 | `quotes[]` | `{ doc, slug, excerpt, text }` for every `<i data-answer="slug">` in the prose |
 | `figures[]` | `{ doc, key, text }` for every `<i data-figure="key">` in the prose |
 | `counts` | `{ documents, questions, visible, resolved, open }`, computed. ⚠️ A host that filters questions for a viewer recomputes these from what it kept, never shows the unfiltered ones |
@@ -68,6 +69,7 @@ number.
 One HTML string per document slug (partials included). Each question with
 `margin` true is replaced in place by an
 `<aside class="q q-open|q-resolved" id="q<N>" data-question="<id>" data-number="<N>" data-audience="<audience>">`
+(plus `data-to="<key> <key>"` and a `<span class="q-to">to <name>, <name></span>` after the audience when the question has `to=`)
 that carries its number link, audience, body, "Why asked", context links, a
 resolved note, and an empty `<div class="q-answers" data-answers-for="<id>">`
 where a host puts the answers. A `margin=false` question leaves nothing in the
@@ -93,6 +95,25 @@ to `retired` with its number (the gap is the signal); one that comes back gets
 its old number. The file is serialized sorted by number. A build that would
 change it is a content change and belongs in the commit that caused it
 (`--check`; Databook's publish refuses a stale lock).
+
+### Addressing
+
+`to=` says who a question is WAITING ON, apart from who may read it. Each name
+is a key under `addressees` in `site.config.yml` (`{ name, describes }`, like an
+audience): a role (`reviewers`, `platform-team`) or a named person. The compiler
+fails the build on an undeclared name, an empty `to=`, a name given twice, or a
+`to=` in a project that declares no addressees, so a typo never leaves a
+question silently waiting on nobody. What a name maps to (a roster group, a set
+of email addresses, a grant) is the host's.
+
+Addressing is OPTIONAL and additive: a project that never uses it compiles to
+exactly the output of the version before it (no `addressees` key, no `to` key,
+no `data-to`), so its digest does not move.
+
+- **Databook** reads `to` as addressing and `audience` as visibility, so a
+  public question can wait on a named group without hiding it.
+- **The Worker host** does not read `to` yet: it still reads the audience as
+  addressing (below), and a `to=` there changes only the margin's label.
 
 ### Audience semantics
 
@@ -127,7 +148,8 @@ digest) depends on it.
 ### Conformance fixtures
 
 `conformance/sample/` is a small project chosen to exercise every clause above:
-both visibility audiences (with a members-only sentinel), a margin and a
+both visibility audiences (with a members-only sentinel), addressing on a
+public and on a members question, a margin and a
 worksheet-only question, a resolved and a hidden one, a retired number, section
 and external references, a partial, a figure, a quote, a decision and a post.
 `conformance/expected/` holds its manifest, fragments, sections and digest.

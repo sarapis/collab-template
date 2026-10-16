@@ -1,5 +1,6 @@
 # The conformance project (HOST-CONTRACT.md, "Conformance fixtures"). Small, and
-# chosen to exercise every part of the output contract: both audiences, a
+# chosen to exercise every part of the output contract: both audiences,
+# addressing (to=) on a public and a members question, a
 # margin and a worksheet-only question, a resolved and a hidden one, a retired
 # number, section and external references, a partial, a figure, a quote, a
 # decision and a post with calendar dates.
@@ -10,6 +11,9 @@ project:
 audiences:
   public: { name: Anyone signed in, describes: "Public questions any signed-in person may answer." }
   members: { name: Members, describes: "Members-only questions. A host must never show their text to anyone else." }
+addressees:
+  reviewers: { name: Reviewers, describes: "A role: whoever reviews this project." }
+  ana: { name: Ana Example, describes: "A named person." }
 asked_rounds:
   r1: { label: "First round", new: false, opened: 2026-09-01 }
   r2: { label: "Second round", new: true, opened: 2026-09-17T17:00:00Z }

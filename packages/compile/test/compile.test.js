@@ -267,3 +267,47 @@ test('a quoted date and a missing date pass through as they are', () => {
   assert.equal(by.q, '2026-09-17');
   assert.equal(by.n, null);
 });
+
+// --- addressing (`to=`), apart from the audience -------------------------------
+
+const CONFIG_WITH_ADDRESSEES = `${CONFIG}addressees:
+  platform-team: { name: Platform team, describes: "The UN platform team." }
+  ana: { name: Ana }
+`;
+
+test('to= names who a question waits on, in the manifest and on its aside', () => {
+  const r = compile({ root: project({ 'a.md': ok(':::question{slug=a audience=devin to="platform-team, ana" asked=r1}\nWhy?\n:::') }, CONFIG_WITH_ADDRESSEES) });
+  assert.equal(r.errors.length, 0, r.errors.join('; '));
+  const q = r.manifest.questions[0];
+  assert.deepEqual(q.to, ['platform-team', 'ana']);
+  assert.equal(q.audience, 'devin', 'the audience is untouched by addressing');
+  assert.deepEqual(Object.keys(r.manifest.addressees), ['platform-team', 'ana']);
+  assert.match(r.fragments.a, /data-to="platform-team ana"/);
+  assert.match(r.fragments.a, /<span class="q-to">to Platform team, Ana<\/span>/);
+});
+
+test('a question with no to= carries no to key, and a project with no addressees no addressees key', () => {
+  // Absent, not empty: a project that never addresses a question compiles
+  // byte-identical to the version before addressing existed.
+  const r = compile({ root: project({ 'a.md': ok(goodQ) }) });
+  assert.equal('to' in r.manifest.questions[0], false);
+  assert.equal('addressees' in r.manifest, false);
+  assert.doesNotMatch(r.fragments.a, /data-to=|q-to/);
+});
+
+test('an addressee the config does not declare fails, rather than waiting on nobody', () => {
+  const r = compile({ root: project({ 'a.md': ok(':::question{slug=a audience=devin to=platfrom-team asked=r1}\nWhy?\n:::') }, CONFIG_WITH_ADDRESSEES) });
+  assert.match(r.errors.join('\n'), /addressed to "platfrom-team", which site\.config\.yml does not declare/);
+});
+
+test('to= with no addressees declared at all fails', () => {
+  const r = compile({ root: project({ 'a.md': ok(':::question{slug=a audience=devin to=ana asked=r1}\nWhy?\n:::') }) });
+  assert.match(r.errors.join('\n'), /declares no addressees/);
+});
+
+test('an empty to= and a repeated addressee fail', () => {
+  const empty = compile({ root: project({ 'a.md': ok(':::question{slug=a audience=devin to="" asked=r1}\nWhy?\n:::') }, CONFIG_WITH_ADDRESSEES) });
+  assert.match(empty.errors.join('\n'), /empty to=/);
+  const twice = compile({ root: project({ 'a.md': ok(':::question{slug=a audience=devin to="ana ana" asked=r1}\nWhy?\n:::') }, CONFIG_WITH_ADDRESSEES) });
+  assert.match(twice.errors.join('\n'), /names an addressee twice/);
+});
