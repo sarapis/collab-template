@@ -44,16 +44,18 @@ const r = fs.existsSync(HOOK) ? await (await import(pathToFileURL(HOOK).href)).d
 const figures = r.figures || {};
 const missing = r.missing || [];
 
+for (const m of missing) console.error(`  ⚠️ skipped ${m}`);
+// ⚠️ An empty export would make every figure in every document pass by
+// matching nothing, so a hook that found nothing it was asked for fails — and
+// fails BEFORE writing, so the last good export survives a missing checkout.
+if (missing.length && !Object.keys(figures).length) {
+  console.error('nothing was exported: check where the measurements are read from');
+  process.exit(1);
+}
+
 const out = { generated_from: r.generated_from, generated_at: new Date().toISOString().slice(0, 10), figures };
 fs.mkdirSync('content', { recursive: true });
 fs.writeFileSync('content/figures.export.json', JSON.stringify(out, null, 2) + '\n');
 
 console.log(`figures: ${Object.keys(figures).length} exported from ${r.generated_from}`);
 for (const [k, v] of Object.entries(figures)) console.log(`  ${k} = ${v}`);
-for (const m of missing) console.error(`  ⚠️ skipped ${m}`);
-// ⚠️ An empty export would make every figure in every document pass by
-// matching nothing, so a hook that found nothing it was asked for fails.
-if (missing.length && !Object.keys(figures).length) {
-  console.error('nothing was exported: check where the measurements are read from');
-  process.exit(1);
-}
