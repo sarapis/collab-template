@@ -264,6 +264,18 @@ table.people td:first-child { white-space: nowrap; }
   margin: .35rem 0 0; }
 .form .btn { margin-top: .2rem; }
 
+/* Groups: a checkbox per group the site defines. The form's and the table's
+   input rules are for text boxes; a checkbox must not be stretched or padded. */
+.form .label { display: block; font-family: var(--font-sans); font-size: .8rem;
+  font-weight: 600; letter-spacing: .01em; margin: 0 0 .35rem; color: var(--foreground); }
+.group-picker { display: flex; flex-wrap: wrap; gap: .3rem .9rem; }
+.form .group-picker label, .group-picker label { display: inline-flex; align-items: center; gap: .35rem;
+  font-family: var(--font-sans); font-size: .85rem; font-weight: 400; margin: 0; cursor: pointer;
+  white-space: nowrap; }
+.form .group-picker input, table.people .group-picker input { width: auto; padding: 0; margin: 0;
+  box-shadow: none; accent-color: var(--primary); }
+.group-picker label.gone { color: var(--muted-foreground); text-decoration: line-through; }
+
 /* The same treatment inside the people table, so a row's controls do not look
    like a different product from the form beneath them. */
 table.people select, table.people input {

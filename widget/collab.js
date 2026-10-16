@@ -535,6 +535,68 @@
     return sel;
   }
 
+  // The groups a person answers for, as checkboxes from the site's own list
+  // (site.config.yml `audiences`). `groups` is null when the server could not
+  // read that list: then it is the old comma-separated box rather than nothing,
+  // so the roster can still be edited. A group the person has that the site no
+  // longer defines stays visible, ticked and marked, so it can be removed.
+  function groupPicker(idBase, selected, groups, onChange) {
+    if (!groups) {
+      var input = document.createElement('input');
+      input.value = selected.join(', ');
+      input.size = 12;
+      input.setAttribute('aria-label', 'Groups, comma separated');
+      if (onChange) input.addEventListener('change', function () {
+        onChange(input.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean));
+      });
+      input.groupValue = function () { return input.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean); };
+      return input;
+    }
+    var box = el('div', 'group-picker', '');
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', 'Groups');
+    var known = groups.map(function (g) { return g.id; });
+    var options = groups.map(function (g) { return { id: g.id, name: g.name, describes: g.describes, gone: false }; });
+    selected.forEach(function (id) {
+      if (known.indexOf(id) === -1) options.push({ id: id, name: id, describes: 'Not a group on this site any more', gone: true });
+    });
+    if (!options.length) { box.appendChild(el('span', 'muted', 'This site defines no groups')); }
+    var boxes = [];
+    options.forEach(function (g, i) {
+      var label = document.createElement('label');
+      label.className = 'group-option' + (g.gone ? ' gone' : '');
+      if (g.describes) label.title = g.describes;
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = g.id;
+      cb.id = idBase + '-' + i;
+      cb.checked = selected.indexOf(g.id) !== -1;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(' ' + g.name));
+      box.appendChild(label);
+      boxes.push(cb);
+    });
+    box.groupValue = function () {
+      return boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+    };
+    if (onChange) boxes.forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        boxes.forEach(function (b) { b.disabled = true; });
+        // A refused change puts the boxes back as the server has them, rather
+        // than leaving a tick on the page that was never saved.
+        Promise.resolve(onChange(box.groupValue())).catch(function () { cb.checked = !cb.checked; })
+          .then(function () { boxes.forEach(function (b) { b.disabled = false; }); });
+      });
+    });
+    return box;
+  }
+
+  function renderAddGroups(groups) {
+    var mount = document.getElementById('p-groups');
+    if (!mount) return;
+    mount.replaceChildren(groupPicker('p-group', [], groups, null));
+  }
+
   function patchPerson(email, body) {
     return api('/api/admin/people/' + encodeURIComponent(email), {
       method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
@@ -643,6 +705,7 @@
     if (!rows) return;
     api('/api/admin/people').then(function (data) {
       renderOrphans(data.orphans || []);
+      renderAddGroups(data.groups);
       rows.replaceChildren();
       (data.people || []).forEach(function (p) {
         var tr = document.createElement('tr');
@@ -665,14 +728,9 @@
         tr.appendChild(role);
 
         var aud = document.createElement('td');
-        var audInput = document.createElement('input');
-        audInput.value = (p.audiences || []).join(', ');
-        audInput.size = 12;
-        audInput.addEventListener('change', function () {
-          var list = audInput.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
-          patchPerson(p.email, { audiences: list }).then(loadMembershipLog);
-        });
-        aud.appendChild(audInput);
+        aud.appendChild(groupPicker('g-' + p.email, p.audiences || [], data.groups, function (list) {
+          return patchPerson(p.email, { audiences: list }).then(loadMembershipLog);
+        }));
         tr.appendChild(aud);
 
         var actions = document.createElement('td');
@@ -720,7 +778,7 @@
         name: form.querySelector('#p-name').value.trim(),
         email: form.querySelector('#p-email').value.trim(),
         role: form.querySelector('#p-role').value,
-        audiences: form.querySelector('#p-audiences').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean),
+        audiences: (function () { var g = document.getElementById('p-groups').firstChild; return g && g.groupValue ? g.groupValue() : []; })(),
       };
       api('/api/admin/people', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
