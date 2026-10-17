@@ -3,6 +3,36 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.12.0 — The conformance sample states its own count, and is checked
+
+**The compiler is unchanged; its fixtures change.** `packages/compile` is
+byte-identical to v1.11.0. `worker/schema.sql` is unchanged and there are no
+setting changes. An instance's own site does not change.
+
+`conformance/sample/content/summary.md` said
+`<i data-figure="counts.open">2</i>` while the sample counts 3 open questions:
+"never type a count" was broken by the fixture that every host's conformance
+test compiles. The template never noticed, because its figures gate reads
+`content/figures.export.json` and the sample has none; Databook's figures gate (its decision 50) flags it.
+The figure now says 3, and `conformance/expected/` is regenerated in this
+commit: `fragments/summary.html`, that figure's `text` in `manifest.json`, and
+the digest (`c51815b6…` → `1bbaa711…`).
+
+`conformance/conformance.test.js` gains the check that would have caught it:
+every figure the sample states must equal the sample's own `counts.*`, and a
+key the sample does not count fails. It is self-contained (no
+`test/detectors.js`), because a host pins `conformance/` without the template's
+gate, so Databook runs it too. A self-test proves it sees a moved number and an
+unknown key. It fails on v1.11.0's sample.
+
+**Hosts that pin `conformance/` must re-pin** to keep their conformance test
+green, because the expected digest moved. Databook:
+`node scripts/template-pin.mjs update v1.12.0 --pin=compile.pin.json` from
+`project-site/`. Instances (undatacommons-collab, comms-strat) need nothing
+until they next take a version; their pinned fixtures pass as they are.
+
+Tests: 448 → 450, in both the default and the band+rows variant.
+
 ## v1.11.0 — The Worker host reads `to=`: who a question waits on
 
 **`worker/schema.sql` is unchanged, no setting changes, and the compiler's output

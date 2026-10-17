@@ -1,4 +1,4 @@
 {
-  "sha256": "c51815b637858388ad5e3989a940dbe9c466fda5ff9e0af89ae739124881a091",
+  "sha256": "1bbaa71115f17f755c5e46ccdf0622c966c9afe927559bd7b58bbfa9a1d220f5",
   "of": "canonical JSON of { manifest, fragments, sources } (conformance/digest.mjs)"
 }

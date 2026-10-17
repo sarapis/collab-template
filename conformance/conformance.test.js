@@ -57,6 +57,32 @@ test('the fixture exercises what the contract promises', () => {
   assert.ok(!r.fragments.guide.includes('worksheet-only'), 'a margin=false question is not in the fragment');
 });
 
+// A figure the sample states must be the sample's own measurement. The fixture
+// carries no figures export, so the instance gate never saw it, and it stated
+// `counts.open` as 2 while it counted 3 (fixed in v1.12.0). Self-contained, not
+// test/detectors.js: a consumer pins conformance/ without the template's gate.
+const COUNTS = Object.fromEntries(Object.entries(r.manifest.counts).map(([k, v]) => [`counts.${k}`, v]));
+function driftedSampleFigures(figures, counts) {
+  const out = [];
+  for (const f of figures) {
+    if (!(f.key in counts)) out.push(`${f.doc} states "${f.key}", which the sample does not count`);
+    else if (Number(String(f.text).replace(/,/g, '')) !== counts[f.key]) {
+      out.push(`${f.doc} states ${f.key} = ${f.text}, but the sample counts ${counts[f.key]}`);
+    }
+  }
+  return out;
+}
+
+test('every figure the sample states is the sample\'s own count', () => {
+  assert.deepEqual(driftedSampleFigures(r.manifest.figures, COUNTS), []);
+});
+
+test('the sample figure check can see a moved number and an unknown key', () => {
+  const [f] = r.manifest.figures;
+  assert.equal(driftedSampleFigures([{ ...f, text: String(COUNTS[f.key] + 1) }], COUNTS).length, 1);
+  assert.equal(driftedSampleFigures([{ ...f, key: 'counts.nothing' }], COUNTS).length, 1);
+});
+
 test('the digest can see one changed byte', () => {
   const sources = sourcesOf(SAMPLE, r.manifest);
   const a = digest(r.manifest, r.fragments, sources);
