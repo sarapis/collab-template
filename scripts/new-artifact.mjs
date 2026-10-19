@@ -14,7 +14,11 @@ if (!title) {
   process.exit(2);
 }
 
-const slug = title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/^-|-$/g, '');
+const slug = title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/^-+|-+$/g, '');
+if (!slug) {
+  console.error(`"${title}" has no letters or digits to make a file name from.`);
+  process.exit(2);
+}
 const file = path.join('content', `${slug}.md`);
 if (fs.existsSync(file)) {
   console.error(`${file} already exists.`);
@@ -38,8 +42,12 @@ const audience = Object.keys(config.audiences || {})[0] || 'someone';
 const round = Object.keys(config.asked_rounds || {}).find((r) => config.asked_rounds[r].new)
   || Object.keys(config.asked_rounds || {})[0] || 'r1';
 
+// ⚠️ The title is written as a quoted YAML string, always. Unquoted, a title
+// with a colon ("Plan: phase two") does not parse at all, and "2026-10-19",
+// "true" or "123" parse as a date, a boolean or a number. JSON's double-quoted
+// string is valid YAML, so JSON.stringify is the quoting.
 fs.writeFileSync(file, `---
-title: ${title}
+title: ${JSON.stringify(title)}
 nav: ${nav}
 ---
 
