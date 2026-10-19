@@ -3,6 +3,32 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.12.1 — `npm run new` quotes the title
+
+**Only `scripts/new-artifact.mjs` changes, plus its new test.** The compiler,
+`conformance/`, `worker/schema.sql` and every setting are unchanged; a site's
+build output does not change.
+
+The scaffold wrote the title into the front matter unquoted. A title with a
+colon (`npm run new -- "The CRM and email: how it works"`) made a file the
+build could not parse: comms-strat hit it on 2026-10-19 and quoted the title by
+hand. Titles that look like a date, a boolean or a number (`2026-10-19`,
+`true`, `1234`) parsed as one, and so did `#`, a leading `-` and `[…]`. The
+title is now always written as a double-quoted YAML string. A title with no
+letters or digits, which used to write `content/.md`, is refused and writes
+nothing.
+
+`test/new-artifact.test.js` runs the real script in a scratch project on nine
+awkward titles, compiles each result with the real compiler, and requires the
+title back unchanged and as a string. Against v1.12.0's script, 8 of its 10
+tests fail.
+
+**Instances:** nothing to do beyond taking the version. A document already
+written by the old scaffold is unaffected unless its title needed quoting, in
+which case its build already failed and it was fixed by hand.
+
+Tests: 450 → 460, in both the default and the band+rows variant.
+
 ## v1.12.0 — The conformance sample states its own count, and is checked
 
 **The compiler is unchanged; its fixtures change.** `packages/compile` is
