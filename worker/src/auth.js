@@ -112,7 +112,11 @@ async function enabled(env) {
 async function loginPage(env, url, note = '') {
   const on = await enabled(env);
   const name = PROJECT.name;
-  const next = encodeURIComponent(url.searchParams.get('next') || '/');
+  // ⚠️ Validated ONCE (safeNext), then escaped for each place it goes: a query
+  // string in the provider links, an attribute in the form. Never decoded back
+  // into HTML: that was a reflected XSS until v1.12.2.
+  const target = safeNext(url.searchParams.get('next'));
+  const next = esc(encodeURIComponent(target));
   const parts = [
     `<h1>${name}</h1>`,
     PROJECT.tagline ? `<p class="tagline">${esc(PROJECT.tagline)}</p>` : '',
@@ -125,7 +129,7 @@ async function loginPage(env, url, note = '') {
   if ((on.google || on.github || on.cms) && on.email) parts.push('<hr class="rule">');
   if (on.email) {
     parts.push(`<form method="post" action="/auth/email/start">
-      <input type="hidden" name="next" value="${decodeURIComponent(next)}">
+      <input type="hidden" name="next" value="${esc(target)}">
       <label for="e">Email me a sign-in link</label>
       <input id="e" name="email" type="email" required autocomplete="email" placeholder="you@example.org">
       <button class="btn primary" type="submit">Send the link</button></form>`);
@@ -165,13 +169,18 @@ async function checkState(request, env, presented) {
 // funnels through — email, Google, GitHub. Validating at each call site is how
 // a fourth provider added later arrives unprotected.
 //
-// Only a same-origin PATH survives. `//evil.com` is protocol-relative and would
-// be treated as a host by the browser; `/\evil.com` is the same trick some
-// parsers fall for. Anything else becomes '/'.
+// Only a same-origin PATH survives: one leading `/`, so no scheme
+// (`javascript:`, `https:`) gets through. `//evil.com` is protocol-relative and
+// would be treated as a host by the browser; a backslash anywhere is the same
+// trick some parsers fall for (`/\evil.com`); a control character can split a
+// header or hide in a URL. Anything else becomes '/'.
+//
+// ⚠️ The sign-in PAGE uses this too (loginPage), not only `land()`: `next` is
+// validated once and every place it goes gets that one value.
 const safeNext = (next) => {
   const s = String(next ?? '');
-  if (!s.startsWith('/')) return '/';
-  if (s.startsWith('//') || s.startsWith('/\\')) return '/';
+  if (!s.startsWith('/') || s.startsWith('//')) return '/';
+  if (s.includes('\\') || /[\u0000-\u001f\u007f]/.test(s)) return '/';
   return s;
 };
 

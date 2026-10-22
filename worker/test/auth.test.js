@@ -324,3 +324,55 @@ test('an ordinary path still works, because that is the point', async () => {
   assert.equal(await landing('/questions/?open=1'), '/questions/?open=1');
   assert.equal(await landing(undefined), '/');
 });
+
+// --- `next` on the sign-in page itself (v1.12.2) ---------------------------
+//
+// ⚠️ Reflected XSS, live until v1.12.2: the page decoded `next` back into the
+// email form's hidden input, so /auth/login?next="><script>… ran script on
+// this origin. `next` is now validated ONCE (safeNext) and the page, the
+// provider links and the redirect all use that value, escaped for where it
+// goes. Every payload below must come back as text, never as markup.
+
+const CMS = { CMS_URL: 'https://cms.example.org', CMS_PASS_SECRET: 'c'.repeat(40) };
+const loginWith = async (next) => {
+  const r = await worker.fetch(get(`/auth/login?next=${encodeURIComponent(next)}`), { ...base(), ...CMS });
+  assert.equal(r.status, 200);
+  return r.text();
+};
+const hiddenNext = (page) => (page.match(/<input type="hidden" name="next" value="([^"]*)">/) || [])[1];
+const cmsNext = (page) => (page.match(/href="\/auth\/cms\/start\?next=([^"]*)"/) || [])[1];
+
+const ATTACKS = ['"><script>alert(1)</script>', 'javascript:alert(1)', '//evil.example', '/\\evil.example'];
+
+test('an attack in next renders as nothing: the page falls back to /', async () => {
+  for (const next of ATTACKS) {
+    const page = await loginWith(next);
+    assert.ok(!page.includes('<script>alert(1)'), `script reflected for ${next}`);
+    assert.ok(!page.includes('evil.example'), `foreign host reflected for ${next}`);
+    assert.ok(!page.includes('javascript:'), `scheme reflected for ${next}`);
+    assert.equal(hiddenNext(page), '/', next);
+    assert.equal(cmsNext(page), '%2F', next);
+  }
+});
+
+test('a path that carries markup stays a path, escaped as text', async () => {
+  // Starts with one slash, so it is same-origin and kept; the quote and the
+  // angle brackets must still never become markup.
+  const page = await loginWith('/"><script>alert(1)</script>');
+  assert.ok(!page.includes('<script>alert(1)'));
+  assert.equal(hiddenNext(page), '/&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
+});
+
+test('a normal next round-trips through the page and the provider links', async () => {
+  const page = await loginWith('/docs/x?y=1');
+  assert.equal(hiddenNext(page), '/docs/x?y=1');
+  assert.equal(decodeURIComponent(cmsNext(page)), '/docs/x?y=1');
+});
+
+test('landing refuses a scheme, a backslash anywhere and control characters', async () => {
+  assert.equal(await landing('javascript:alert(1)'), '/');
+  assert.equal(await landing('/docs\\evil'), '/');
+  assert.equal(await landing('/x\r\nset-cookie: a=b'), '/');
+  assert.equal(await landing('/x\u0000y'), '/');
+  assert.equal(await landing('/docs/x?y=1'), '/docs/x?y=1');
+});
