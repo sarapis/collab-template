@@ -1,5 +1,5 @@
 import { matches } from './routes.js';
-import { identify, ANON, canRead } from './identity.js';
+import { identify, ANON, canRead, isEditor } from './identity.js';
 import { handleMcp } from './mcp.js';
 import { handleAuth } from './auth.js';
 import { PUBLIC_NOTICE } from './site.generated.js';
@@ -11,7 +11,7 @@ import { overLimit } from './limits.js';
 import { handleChat, listSessions, readSession, enforceRetention } from './chat.js';
 import { handleAdmin } from './admin.js';
 import { handleContent } from './content.js';
-import { isBand, bandPage, wrapBuilt, viewEnv, viewFor, publicIndexFor, hostOf } from './band.js';
+import { isBand, bandPage, wrapBuilt, viewEnv, viewFor, publicIndexFor, hostOf, commentsFor } from './band.js';
 import { groupName, waitsOn, waitsOnAny } from './waits.js';
 
 const json = (data, status = 200) =>
@@ -90,13 +90,7 @@ async function patchAnswer(request, env, me, answerId) {
 
 async function getComments(request, env, me) {
   const p = new URL(request.url).searchParams;
-  let comments = await readComments(env, p.get('doc'), p.get('since'));
-  if (isBand(env)) {
-    const v = await viewFor(request, env, me);
-    const docs = new Set((v?.view.manifest.docs || []).map((d) => d.slug));
-    comments = comments.filter((c) => !c.doc || docs.has(c.doc));
-  }
-  return json({ comments });
+  return json({ comments: await readComments(request, env, me, p.get('doc'), p.get('since')) });
 }
 
 async function postComment(request, env, me) {
@@ -180,7 +174,7 @@ async function getNotifications(request, env, me) {
     });
   }
 
-  if (me.role === 'contributor') {
+  if (isEditor(me)) {
     // The other half of the loop, and the half that stalls silently: an answer
     // that has landed and not yet been folded into the prose.
     const toFold = open.filter((q) => answeredByAnyone(q));
@@ -270,6 +264,10 @@ async function createComment({ body, doc = null, section = null, parent = null, 
   const long = overLimit(text);
   if (long) return { ok: false, error: long };
   if (!me.can_write) return { ok: false, error: 'not permitted' };
+  // A reply is on its parent's document, so it is read under the same rule.
+  if (parent && !doc) {
+    doc = (await env.DB.prepare('SELECT doc FROM comments WHERE id = ?').bind(parent).first())?.doc || null;
+  }
   const rowId = id();
   await env.DB.prepare(
     'INSERT INTO comments (id, thread, doc, section, parent_id, author_sub, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -277,20 +275,25 @@ async function createComment({ body, doc = null, section = null, parent = null, 
   return { ok: true, id: rowId };
 }
 
-async function readComments(env, doc, since) {
-  let q;
-  if (doc) q = env.DB.prepare('SELECT * FROM comments WHERE doc = ? OR doc IS NULL ORDER BY created_at').bind(doc);
-  else if (since) q = env.DB.prepare('SELECT * FROM comments WHERE created_at > ? ORDER BY created_at').bind(since);
-  else q = env.DB.prepare('SELECT * FROM comments ORDER BY created_at');
-  const { results } = await q.all();
-  return results || [];
+// ⚠️ The one read of comments, for /api/ and MCP alike: in the band layout only
+// those on documents this viewer may see (band.js commentsFor).
+async function readComments(request, env, me, doc, since) {
+  let docs = null;
+  if (isBand(env)) {
+    const v = await viewFor(request, env, me);
+    docs = new Set((v?.view.manifest.docs || []).map((d) => d.slug));
+  }
+  let comments = await commentsFor(env, me, docs);
+  if (doc) comments = comments.filter((c) => c.doc === doc || !c.doc);
+  else if (since) comments = comments.filter((c) => c.created_at > since);
+  return comments;
 }
 
 export const MCP_HANDLERS = {
   postAnswer: (qid, body, env, me) => createAnswer(qid, body, env, me),
-  listComments: (env, doc, since) => readComments(env, doc, since),
+  listComments: (env, doc, since, request, me) => readComments(request, env, me, doc, since),
   replyToComment: (parentId, body, env, me) => createComment({ body, parent: parentId }, env, me),
-  // The transcript is contributor-only over MCP for the same reason it is on the
+  // The transcript is editor-only over MCP for the same reason it is on the
   // web: it is other people's unedited words about things not yet decided.
   listChatSessions: (env, me) => listSessions(env, me).then((r) => r.json()),
   readChatSession: (env, me, id) => readSession(env, me, id).then((r) => r.json()),

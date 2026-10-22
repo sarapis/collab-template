@@ -25,8 +25,15 @@ const json = (data, status = 200, extra = {}) => new Response(JSON.stringify(dat
   status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...extra } });
 // ⚠️ Every page the Worker renders is per viewer, so none may be cached by
 // anything between the Worker and the reader (Databook decision 39).
-const page = (html, status = 200) => new Response(html, {
-  status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+// ⚠️ In rows mode a contributor's markdown is rendered with its raw HTML for
+// every reader, admins included, so no script but the site's own files may run:
+// no inline <script>, no on*= handler, no javascript: link. The layout loads
+// only /collab.js and /content-editor.js. Git content is reviewed as commits and
+// keeps what it has.
+export const CSP = "script-src 'self'; object-src 'none'; base-uri 'self'";
+const page = (html, status = 200, env = null) => new Response(html, {
+  status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+    ...(env && hostOf(env).settings.content.source === 'rows' ? { 'content-security-policy': CSP } : {}) } });
 const redirect = (to, status = 301) => new Response(null, { status, headers: { location: to, 'cache-control': 'no-store' } });
 const notFound = () => new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
 
@@ -92,16 +99,46 @@ export async function versionsList(env, settings, version, limit = 20) {
   return (results || []).map((r) => ({ id: r.id, digest: r.digest, published_at: r.created_at, published_by: r.created_by_name, reason: r.reason, live: r.id === live }));
 }
 
-async function activityLive(env, settings, version, view) {
+// Every comment, oldest first, as a reader gets it, keeping those on a document
+// in `docs` (null: all of them) and those on no document.
+//
+// ⚠️ A reply is on its parent's document. One stored before v1.12.3 has no doc
+// of its own and was read as project-wide, so a reply in a members-only thread
+// reached anonymous readers; it takes its thread's doc here, and one whose
+// thread cannot be found is not shown. ⚠️ Never `author_sub`: it is the
+// person's email address. `mine` says what the widget needs, as answers do.
+export async function commentsFor(env, me, docs = null) {
+  const { results } = await env.DB.prepare(
+    'SELECT id, thread, doc, section, parent_id, author_sub, author_name, body, created_at FROM comments ORDER BY created_at').all();
+  const rows = results || [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const docOf = (r) => {
+    for (const seen = new Set(); r && !r.doc && r.parent_id; r = byId.get(r.parent_id)) {
+      if (seen.has(r.id)) return undefined;
+      seen.add(r.id);
+    }
+    return r ? r.doc || null : undefined;
+  };
+  const out = [];
+  for (const r of rows) {
+    const doc = docOf(r);
+    if (doc === undefined || (doc && docs && !docs.has(doc))) continue;
+    out.push({ id: r.id, thread: r.thread, doc, section: r.section, parent_id: r.parent_id,
+      author_name: r.author_name, body: r.body, created_at: r.created_at, mine: !!me?.sub && r.author_sub === me.sub });
+  }
+  return out;
+}
+
+async function activityLive(env, settings, version, view, me) {
   const ids = new Set(view.manifest.questions.map((q) => q.id));
   const docs = new Set(view.manifest.docs.map((d) => d.slug));
   const [a, c] = await Promise.all([
     env.DB.prepare('SELECT question_id, author_name, body, created_at FROM answers ORDER BY created_at DESC LIMIT 50').all().catch(() => ({ results: [] })),
-    env.DB.prepare('SELECT doc, author_name, body, created_at FROM comments ORDER BY created_at DESC LIMIT 50').all().catch(() => ({ results: [] })),
+    commentsFor(env, me, docs).catch(() => []),
   ]);
   return {
     answers: (a.results || []).filter((r) => ids.has(r.question_id)),
-    comments: (c.results || []).filter((r) => !r.doc || docs.has(r.doc)),
+    comments: c.slice(-50).reverse(),
     versions: await versionsList(env, settings, version),
   };
 }
@@ -131,14 +168,14 @@ export async function bandPage(request, env, me, url) {
   if (!v) return null;
   const { version, view } = v;
   const ctx = ctxFor(env, view);
-  const render = (title, body, extra = {}) => page(R.layout(ctx, { path: p, title, body, ...extra }));
+  const render = (title, body, extra = {}) => page(R.layout(ctx, { path: p, title, body, ...extra }), 200, env);
 
   if (p === '/manifest.json' || p === '/sections.json' || p.startsWith('/source/')) return viewAssets(env, request, me).fetch(new Request(url));
   if (p === '/') return render(view.manifest.project?.name || 'Home', R.homePage(view, { waiting: await waitingFor(env, view.manifest, me) }));
   if (p === '/about/') return render('About', R.aboutPage(view), { doc: 'start' });
   if (p === '/get-involved/') return render('Get involved', R.getInvolvedPage(view, { origin: url.origin, publicRead: flag(env, 'PUBLIC_READ') }));
   if (p === '/questions/') return render('Questions', R.questionsPage(view));
-  if (p === '/activity/') return render('Activity', R.activityPage(view, await activityLive(env, host.settings, version, view), url.searchParams.get('type')));
+  if (p === '/activity/') return render('Activity', R.activityPage(view, await activityLive(env, host.settings, version, view, me), url.searchParams.get('type')));
   if (pages.includes(p + '/')) return redirect(p + '/' + url.search);
 
   // A document. ⚠️ One that exists but this viewer may not see answers exactly
@@ -168,7 +205,7 @@ export async function wrapBuilt(response, request, env, me, url) {
   const meta = JSON.parse(m[1]);
   const v = await viewFor(request, env, me);
   if (!v) return new Response(text, response);
-  return page(R.layout(ctxFor(env, v.view), { path: url.pathname, title: meta.title || '', doc: meta.doc || '', body: text.slice(m[0].length) }));
+  return page(R.layout(ctxFor(env, v.view), { path: url.pathname, title: meta.title || '', doc: meta.doc || '', body: text.slice(m[0].length) }), 200, env);
 }
 
 // /llms.txt on a public rows instance: built from what an anonymous reader sees.

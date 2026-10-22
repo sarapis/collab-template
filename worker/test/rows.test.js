@@ -367,6 +367,34 @@ test('a batch moves a document: numbers, answers and comments follow it, history
   assert.equal((await go(env, get('/plan/', ADMIN))).status, 404);
 });
 
+test('a document moved away can be moved back: the path’s history continues, it does not collide', async () => {
+  const { env } = await rowsSite();
+  const it = await item(env, 'content/plan.md');
+  assert.equal((await batch(env, { moves: [{ from: 'content/plan.md', to: 'content/guides/plan.md', base_revision: it.revision }] })).r.status, 200);
+  const there = await item(env, 'content/guides/plan.md');
+  const back = await batch(env, { moves: [{ from: 'content/guides/plan.md', to: 'content/plan.md', base_revision: there.revision }] });
+  assert.equal(back.r.status, 200, JSON.stringify(back.j));
+  const home = await item(env, 'content/plan.md');
+  const history = (await body(env, get('/api/content/revisions?path=content%2Fplan.md', EDITOR))).j.revisions;
+  assert.equal(home.revision, history[0].revision);
+  assert.deepEqual(history.map((h) => h.revision), [3, 2, 1], 'imported, moved away, moved back');
+  assert.equal((await go(env, get('/plan/', ADMIN))).status, 200);
+});
+
+test('rows: a contributor’s script cannot run, for an admin or anyone (a CSP on every rendered page)', async () => {
+  const { env } = await rowsSite();
+  const it = await item(env, 'content/plan.md');
+  assert.equal((await save(env, 'content/plan.md', { body: `${it.body}\n\n<script>fetch('/api/admin/people')</script>\n` })).r.status, 200);
+  for (const p of ['/plan/', '/', '/activity/']) {
+    const csp = (await go(env, get(p, ADMIN))).headers.get('content-security-policy') || '';
+    assert.match(csp, /script-src 'self'(;|$)/, p);
+    assert.doesNotMatch(csp, /unsafe-inline/, p);
+  }
+  // Git content is reviewed as commits: its pages are left as they were.
+  const git = await bandEnv();
+  assert.equal((await go(git, get('/plan/', ADMIN))).headers.get('content-security-policy'), null);
+});
+
 test('a moved site still round-trips: the export compiles to the live digest', async () => {
   const { env } = await rowsSite();
   const it = await item(env, 'content/plan.md');

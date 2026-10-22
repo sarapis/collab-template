@@ -201,7 +201,7 @@ test('one person cannot read another transcript through their own session id', a
   } finally { restore(); }
 });
 
-test('only a contributor may read the log', async () => {
+test('only an editor may read the log', async () => {
   const e = env(db([{ session_id: 's', author_sub: 'devin@example.org', author_name: 'Devin', created_at: '2026-01-01T00:00:00.000Z' }]));
   const asUser = await worker.fetch(new Request('https://x/api/chat/sessions', { headers: { cookie: 'collab_session=guest@example.org' } }), e);
   assert.equal(asUser.status, 403);

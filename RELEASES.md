@@ -3,6 +3,49 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.12.3 — Security fixes from the 2026-10-21 review: comments, disabled people, rows scripts
+
+**Take this now if your instance is public (`PUBLIC_READ=true`), runs content as
+rows, or has ever disabled anyone.** Only `worker/src/` changes (`band.js`,
+`chat.js`, `content.js`, `index.js`, `mcp.js`, `oauth.js`), plus tests. The
+compiler, `conformance/`, `worker/schema.sql` and every setting are unchanged,
+and a site's build output does not change.
+
+- **Comments on members-only documents reached strangers.** MCP `list_comments`
+  read every row unfiltered, and a reply was stored with no document and read
+  as project-wide, so a reply in a members-only thread showed on `/api/comments`
+  and `/activity/` to anyone. There is now one read (`band.js` `commentsFor`,
+  called by `/api/comments`, MCP and Activity) that keeps only what the viewer
+  may see. A new reply is stored with its parent's `doc`; one stored before
+  this takes its thread's at read time, so no data needs changing.
+- **Comments carried the commenter's email address** (`author_sub`), to anyone
+  on a public instance. They now carry `author_name` and a `mine` flag, as
+  answers do. ⚠️ MCP `list_comments` loses `author_sub` too.
+- **A disabled person kept their OAuth connectors**, and their session cookie
+  could still approve a new one at `/authorize`. Both doors now refuse a
+  disabled row, as `identify()` already did.
+- **Rows mode: a contributor's `<script>` ran for every reader, admins
+  included.** Every page the Worker renders in rows mode is now sent with
+  `Content-Security-Policy: script-src 'self'; object-src 'none'; base-uri 'self'`:
+  no inline script, `on*=` handler or `javascript:` link runs. The layout only
+  loads its own files. ⚠️ An instance whose rows content relies on an inline
+  script will see it stop; move it to a file. Git-mode pages are unchanged.
+- **A path that was moved away could never be used again.** Moving a document
+  back, or recreating a removed path, started again at revision 1, collided
+  with the history the move kept, and was reported as "somebody else saved".
+  A recreated path now continues from its last revision.
+- **Admins were refused the Conversation log** that only the admin menu links
+  to, and never got the "fold" or "new conversation" notifications. Both now
+  admit any editor (`isEditor`: admins and contributors).
+
+Six new tests (`worker/test/band.test.js`, `rows.test.js`, `oauth.test.js`),
+each failing against v1.12.2.
+
+**Instances:** take the version (`npm run template -- update v1.12.3`). Nothing
+else is needed.
+
+Tests: 464 → 470, in both the default and the band+rows variant.
+
 ## v1.12.2 — A security fix: the sign-in page reflected `next` unescaped
 
 **Take this now if your instance has email sign-in on** (`MAGIC_LINK_FROM`

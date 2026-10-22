@@ -201,6 +201,69 @@ test('members-only: MCP reads the live version, so a member is shown it', async 
   assert.ok(JSON.stringify(await (await handleMcp(req, env, me, MCP_HANDLERS)).json()).includes(SENTINEL));
 });
 
+// v1.12.3: a reply was stored with no doc and read as project-wide, and MCP
+// list_comments read every row unfiltered.
+const mcpCall = async (env, me, name, args = {}) => {
+  const req = new Request('https://collab.test/mcp', { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) });
+  return JSON.stringify(await (await handleMcp(req, env, me, MCP_HANDLERS)).json());
+};
+const STRANGER = { authenticated: false, can_write: false, audiences: [] };
+
+test('members-only: a comment on it, or a reply in its thread, reaches no stranger by any door', async () => {
+  const { env } = await membersOnly();
+  await env.DB.prepare('INSERT INTO comments (id, thread, doc, author_sub, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind('c1', 'general', 'plan', READER, 'Reader', 'SECRET-COMMENT', '2026-10-05T00:00:00Z').run();
+  // A reply stored before v1.12.3: no doc of its own.
+  await env.DB.prepare('INSERT INTO comments (id, thread, doc, parent_id, author_sub, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind('c2', 'general', null, 'c1', ADMIN, 'Admin', 'SECRET-OLD-REPLY', '2026-10-05T00:01:00Z').run();
+  // A reply posted now, through the API, as a widget would.
+  const posted = await worker.fetch(new Request('https://collab.test/api/comments', { method: 'POST',
+    headers: { cookie: `collab_session=${READER}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ body: 'SECRET-NEW-REPLY', parent_id: 'c1' }) }), env);
+  assert.equal(posted.status, 201);
+  assert.equal((await env.DB.prepare("SELECT doc FROM comments WHERE body = 'SECRET-NEW-REPLY'").first()).doc, 'plan', 'a reply is on its parent’s document');
+
+  const seen = [
+    await (await fetch(env, '/api/comments', null)).text(),
+    await (await fetch(env, '/api/comments?doc=about', null)).text(),
+    await (await fetch(env, '/activity/', null)).text(),
+    await mcpCall(env, STRANGER, 'list_comments'),
+  ];
+  for (const [i, text] of seen.entries()) assert.doesNotMatch(text, /SECRET-/, `door ${i} shows a stranger the members-only thread`);
+
+  // The filter, not an empty table: a member is shown all three.
+  const member = await mcpCall(env, { authenticated: true, can_write: true, sub: READER, audiences: [] }, 'list_comments');
+  for (const s of ['SECRET-COMMENT', 'SECRET-OLD-REPLY', 'SECRET-NEW-REPLY']) assert.ok(member.includes(s), s);
+});
+
+test('comments never carry a commenter’s email address, by the API or MCP', async () => {
+  const env = await bandEnv({ publicRead: true });
+  await env.DB.prepare('INSERT INTO comments (id, thread, doc, author_sub, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind('c1', 'general', null, READER, 'Reader', 'a public remark', '2026-10-05T00:00:00Z').run();
+  for (const text of [
+    await (await fetch(env, '/api/comments', null)).text(),
+    await (await fetch(env, '/api/comments', ADMIN)).text(),
+    await mcpCall(env, STRANGER, 'list_comments'),
+  ]) {
+    assert.match(text, /a public remark/);
+    assert.ok(!text.includes(READER) && !text.includes('author_sub'), text);
+  }
+  const mine = await (await fetch(env, '/api/comments', READER)).json();
+  assert.equal(mine.comments[0].mine, true);
+  assert.equal((await (await fetch(env, '/api/comments', ADMIN)).json()).comments[0].mine, false);
+});
+
+test('an admin reads the Conversation log the admin menu links to, and is told what to fold', async () => {
+  const v = sampleVersion();
+  const env = await bandEnv({ version: v });
+  await env.DB.prepare('INSERT INTO answers (id, question_id, author_sub, author_name, body, created_at, revision_count) VALUES (?, ?, ?, ?, ?, ?, 0)')
+    .bind('a1', plan(v).id, READER, 'Reader', 'The team first.', '2026-10-05T00:00:00Z').run();
+  assert.equal((await fetch(env, '/api/chat/sessions', ADMIN)).status, 200);
+  assert.equal((await fetch(env, '/api/chat/sessions', READER)).status, 403, 'and a reader still is not');
+  const n = await (await fetch(env, '/api/notifications', ADMIN)).json();
+  assert.ok(n.items.some((i) => i.kind === 'fold'), JSON.stringify(n.items));
+});
+
 test('members-only: somebody on the roster sees it, under a banner', async () => {
   const { env } = await membersOnly();
   const { r, body } = await html(env, '/plan/', READER);

@@ -152,8 +152,13 @@ export async function commit(env, me, changes, reason, extra = []) {
       deleted.set(c.path, prev);
       continue;
     }
+    // ⚠️ A path with no row may still have history (a move or a removal keeps
+    // it), and its next revision follows that history: starting again at 1
+    // collided with it, every time, and read as somebody else saving.
+    const base = prev ? prev.revision || 0
+      : Number((await env.DB.prepare('SELECT MAX(revision) AS n FROM content_revisions WHERE path = ?').bind(c.path).first())?.n || 0);
     byPath.set(c.path, { path: c.path, status: c.status ?? prev?.status ?? 'published', body: c.body ?? prev?.body ?? '',
-      revision: (prev?.revision || 0) + 1, prev });
+      revision: base + 1, prev });
   }
   const next = [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
   const b = await build(next, configText(env));
