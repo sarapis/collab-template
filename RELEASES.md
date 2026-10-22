@@ -3,6 +3,42 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.12.2 — A security fix: the sign-in page reflected `next` unescaped
+
+**Take this now if your instance has email sign-in on** (`MAGIC_LINK_FROM`
+set). **Only `worker/src/auth.js` changes, plus its tests.** The compiler,
+`conformance/`, `worker/schema.sql` and every setting are unchanged, and a
+site's build output does not change.
+
+The sign-in page decoded `?next=` back into the email form's hidden input
+(`value="${decodeURIComponent(next)}"`), so a crafted link such as
+`/auth/login?next="><script>…</script>` ran script on the site's origin: a
+reflected XSS, found by a code review on 2026-10-21. `safeNext()` already
+guarded the redirect after sign-in, but the page never used it.
+
+- `next` is now validated ONCE, with `safeNext()`, and that one value is used
+  for the form, the Google/GitHub/CMS links and the redirect. Only a same-origin
+  path survives: a single leading `/`, so no scheme (`javascript:`, `https:`),
+  no `//`, no backslash anywhere, no control character. Anything else becomes `/`.
+- It is escaped for each place it goes: `esc()` for the attribute,
+  `encodeURIComponent` (then `esc()`) for the links. Nothing is decoded back
+  into HTML.
+
+`worker/test/auth.test.js` gains four tests. They load the sign-in page with
+`"><script>alert(1)</script>`, `javascript:alert(1)`, `//evil.example` and
+`/\evil.example` (each must fall back to `/`), a slash-led path that carries
+markup (it must come back escaped), and `/docs/x?y=1` (it must round-trip
+through the form and the links). They also check that a backslash anywhere, or
+a control character, is refused on landing. Three of the four fail against
+v1.12.1; the round-trip test passes on both, as the guard against an
+over-strict fix.
+
+**Instances:** take the version (`npm run template -- update v1.12.2`). Nothing
+else is needed: a link carrying a `next` that is now refused still signs the
+person in, landing on `/`.
+
+Tests: 460 → 464, in both the default and the band+rows variant.
+
 ## v1.12.1 — `npm run new` quotes the title
 
 **Only `scripts/new-artifact.mjs` changes, plus its new test.** The compiler,
