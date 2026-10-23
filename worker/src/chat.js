@@ -15,6 +15,7 @@ import { flag } from './flag.js';
 import { secretValue } from './secrets.js';
 import { overLimit } from './limits.js';
 import { waitsOn } from './waits.js';
+import { isEditor } from './identity.js';
 
 // The model is a var, not a constant, so changing it is a config edit and a
 // deploy rather than a code change. ⚠️ Google renames these aliases; if the API
@@ -252,7 +253,7 @@ export async function handleChat(request, env, me) {
 }
 
 export async function listSessions(env, me) {
-  if (me.role !== 'contributor') return json({ error: 'not permitted' }, 403);
+  if (!isEditor(me)) return json({ error: 'not permitted' }, 403);
   const { results } = await env.DB.prepare(
     `SELECT session_id, author_name, COUNT(*) AS turns, MIN(created_at) AS started, MAX(created_at) AS last
        FROM chat_turns GROUP BY session_id ORDER BY last DESC LIMIT 100`
@@ -261,7 +262,7 @@ export async function listSessions(env, me) {
 }
 
 export async function readSession(env, me, sessionId) {
-  if (me.role !== 'contributor') return json({ error: 'not permitted' }, 403);
+  if (!isEditor(me)) return json({ error: 'not permitted' }, 403);
   const { results } = await env.DB.prepare(
     'SELECT * FROM chat_turns WHERE session_id = ? ORDER BY created_at'
   ).bind(sessionId).all();

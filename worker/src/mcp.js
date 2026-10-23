@@ -102,7 +102,7 @@ async function call(name, args, env, request, me, handlers) {
     }
 
     case 'list_comments': {
-      const r = await handlers.listComments(env, args.doc, args.since);
+      const r = await handlers.listComments(env, args.doc, args.since, request, me);
       return text(r);
     }
 

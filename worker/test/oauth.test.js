@@ -108,6 +108,25 @@ test('a connector authorised by somebody since removed stops working', async () 
   assert.match(await r.text(), /no longer authorised/);
 });
 
+test('a disabled person’s connector stops working, and they cannot approve a new one', async () => {
+  // v1.12.3: both doors checked only that a row existed, and findByEmail returns
+  // a disabled row; identify() already refused it.
+  const off = env({ users: USERS.map((u) => (u.email === 'devin@example.org' ? { ...u, disabled_at: '2026-10-20T00:00:00Z' } : u)) });
+  const r = await oauthMcpHandler.fetch(
+    new Request('https://x/connect', { method: 'POST', body: '{}' }), off, { props: { sub: 'devin@example.org' } });
+  assert.equal(r.status, 401);
+  const cookie = `collab_session=${await issue('devin@example.org', off)}`;
+  for (const method of ['GET', 'POST']) {
+    env.lastAuthorization = null;
+    const req = new Request('https://x/authorize?client_id=x', { method, headers: { cookie },
+      body: method === 'POST' ? new URLSearchParams({ approve: 'yes' }) : undefined });
+    const a = await makeAuthorizeHandler(site).fetch(req, off, {});
+    assert.equal(a.status, 302, method);
+    assert.match(a.headers.get('location'), /^\/auth\/login/, method);
+    assert.equal(env.lastAuthorization, null, method);
+  }
+});
+
 test('the OAuth door and the bearer door reach the same person', async () => {
   // Two doors that resolved identity differently is how an agent ends up able to
   // do something a person cannot.

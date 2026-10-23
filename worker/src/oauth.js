@@ -57,7 +57,9 @@ async function currentPerson(request, env) {
   if (!raw || !env.SESSION_SECRET) return null;
   const payload = await verify(raw, env.SESSION_SECRET);
   if (!payload || String(payload.epoch) !== String(env.SESSION_EPOCH || '1')) return null;
-  return findByEmail(env, payload.sub);
+  // ⚠️ A disabled person is on the roster and is nobody, as in identify().
+  const who = await findByEmail(env, payload.sub);
+  return who && !who.disabled ? who : null;
 }
 
 function consentPage(me, clientName, search) {
@@ -143,7 +145,7 @@ export const oauthMcpHandler = {
     if (request.method !== 'POST') return new Response('POST only', { status: 405 });
     const sub = ctx?.props?.sub;
     const me = sub ? await findByEmail(env, sub) : null;
-    if (!me) {
+    if (!me || me.disabled) {
       console.warn(`[oauth] a token names "${sub}", who is not on the roster`);
       return new Response(JSON.stringify({
         jsonrpc: '2.0', id: null,
