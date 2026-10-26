@@ -109,8 +109,8 @@ function linksOf(row, env) {
   try { list = JSON.parse(row.links || '[]'); } catch { list = []; }
   return list.map((l) => {
     const k = kinds[l.kind];
-    const href = k ? k.url.replace('{ref}', encodeURIComponent(l.ref)) : (URL_OK.test(l.url || '') ? l.url : null);
-    return { kind: l.kind, ref: l.ref, label: l.label || k?.label || (l.kind === 'pr' ? 'PR' : l.kind), href };
+    const href = k ? k.url.replace('{ref}', encodeURIComponent(l.ref)) : (hrefOk(l.url) ? l.url : null);
+    return { kind: l.kind, ref: l.ref, label: l.label || k?.label || ({ pr: 'PR', session: 'Session' }[l.kind] || l.kind), href };
   });
 }
 
@@ -170,6 +170,11 @@ export async function listTasks(request, env, me, filters = {}) {
     // The task(s) a pull request belongs to, by either spelling of the PR.
     const want = prRef(filters.pr);
     rows = rows.filter((r) => want && JSON.parse(r.links || '[]').some((l) => l.kind === 'pr' && l.ref === want));
+  }
+  if (filters.session) {
+    // The task(s) a Claude session is working on: how a session finds its own.
+    const want = sessionRef(filters.session);
+    rows = rows.filter((r) => want && JSON.parse(r.links || '[]').some((l) => l.kind === 'session' && l.ref === want));
   }
   if (filters.question) {
     const n = numberOf(String(filters.question).replace(/^Q/i, ''));
@@ -274,6 +279,22 @@ export function prRef(x) {
   const m = s.match(PR_URL) || s.match(PR_REF);
   return m ? `${m[1]}/${m[2]}#${m[3]}` : null;
 }
+// A Claude session, the desktop app's own link to it: `session` with
+// `local_<uuid>`, or the pasted claude://claude.ai/epitaxy/local_<uuid>.
+// ⚠️ The ONE address that is not http(s) a link may carry, matched whole: no
+// other claude:// path or host, no other scheme. Anything else in an href is a
+// script waiting to be clicked.
+const SESSION_ID = /^local_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SESSION_URL = /^claude:\/\/claude\.ai\/epitaxy\/(local_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+export function sessionRef(x) {
+  const s = String(x || '').trim();
+  if (SESSION_ID.test(s)) return s;
+  const m = s.match(SESSION_URL);
+  return m ? m[1] : null;
+}
+const sessionLink = (ref) => ({ kind: 'session', ref, url: `claude://claude.ai/epitaxy/${ref}` });
+const hrefOk = (u) => URL_OK.test(u || '') || SESSION_URL.test(u || '');
+
 const prLink = (ref) => {
   const [repo, n] = ref.split('#');
   return { kind: 'pr', ref, url: `https://github.com/${repo}/pull/${n}` };
@@ -289,6 +310,12 @@ function cleanLinks(list) {
     const pr = (kind === 'pr' || !kind) ? prRef(l?.url) || prRef(ref) : null;
     if (pr) { out.push({ ...prLink(pr), ...(l.label ? { label: String(l.label).slice(0, 100) } : {}) }); continue; }
     if (kind === 'pr') return fail(400, 'a PR link is owner/repo#123, or a https://github.com/owner/repo/pull/123 URL');
+    if (kind === 'session' || !kind) {
+      // A URL, when given, decides: only the app's exact address is a session.
+      const session = l?.url ? (SESSION_URL.test(String(l.url).trim()) ? sessionRef(l.url) : null) : sessionRef(ref);
+      if (session) { out.push(sessionLink(session)); continue; }
+      if (kind === 'session') return fail(400, 'a session link is local_<id>, or the Claude app’s claude://claude.ai/epitaxy/local_<id>');
+    }
     if (!kind && URL_OK.test(String(l?.url || ''))) { kind = 'link'; ref = ref || String(l.url); }
     if (!LINK_KIND.test(kind)) return fail(400, `a link's kind is lowercase letters, digits, - and _ (got "${kind}")`);
     if (!ref || ref.length > MAX_REF) return fail(400, `a link's ref is 1 to ${MAX_REF} characters`);
@@ -607,8 +634,9 @@ export function taskPage(t, { me, groups, people, error, assigned = '' }) {
     const note = e.note && e.kind !== 'edit' ? para(e.note) : '';
     return `<li class="task-event" data-kind="${esc(e.kind)}"><p class="counts">${esc(day(e.at))} · ${esc(e.by)} ${what}</p>${note}</li>`;
   }).join('\n');
+  // A session link opens the Claude app, so it is not sent to a new tab.
   const links = t.links.length ? `<ul class="task-links">${t.links.map((l) => `<li>${esc(l.label)}: ${l.href
-    ? `<a href="${esc(l.href)}" rel="noreferrer" target="_blank">${esc(l.ref)} ↗</a>` : esc(l.ref)}</li>`).join('')}</ul>` : '';
+    ? `<a href="${esc(l.href)}" rel="noreferrer"${l.kind === 'session' ? '' : ' target="_blank"'}>${esc(l.ref)} ↗</a>` : esc(l.ref)}</li>`).join('')}</ul>` : '';
   const edit = isEditor(me) ? `<h2 id="update">Update</h2>
 <form class="form task-form" method="post" action="${esc(t.href)}">
   <input type="hidden" name="base_updated_at" value="${esc(t.updated_at)}">

@@ -339,3 +339,58 @@ test('saving the task form keeps a person assignee it was not asked to change', 
   assert.equal(after.assignee?.mine, true, 'saving the form dropped the assignee');
   assert.deepEqual(after.events.map((e) => e.kind), ['created', 'status']);
 });
+
+// --- a Claude session keeps its task up to date (v1.13.4) ---------------------
+
+const SID = 'local_98129107-949e-4203-8bd7-d885fda381f0';
+const SURL = `claude://claude.ai/epitaxy/${SID}`;
+
+test('a session link: the Claude app’s address, by URL or by id, labelled Session', async () => {
+  const env = await on();
+  const a = await create(env, EDITOR, { title: 'x', source: Q1, links: [{ url: SURL }] });
+  assert.equal(a.status, 201);
+  assert.deepEqual(a.body.task.links, [{ kind: 'session', ref: SID, label: 'Session', href: SURL }]);
+  const b = await create(env, EDITOR, { title: 'y', source: Q1, links: [{ kind: 'session', ref: SID }] });
+  assert.deepEqual(b.body.task.links, a.body.task.links, 'the id alone is the same link');
+  assert.match((await page(env, '/tasks/T1/', READER)).body,
+    new RegExp(`Session: <a href="${SURL.replace(/[/.]/g, '\\$&')}" rel="noreferrer">${SID} ↗</a>`));
+  // Found by the session, whichever way it is written: how a session finds its own task.
+  for (const s of [SID, SURL]) assert.deepEqual((await list(env, READER, `?session=${encodeURIComponent(s)}`)).body.tasks.map((t) => t.ref), ['T1', 'T2']);
+  assert.equal(JSON.parse(await mcp(env, READER, 'list_tasks', { session: SURL })).length, 2);
+});
+
+test('only that one non-http address: any other claude:// path, host or scheme is refused', async () => {
+  const env = await on();
+  for (const url of [
+    'javascript:alert(1)',
+    'claude://claude.ai/settings',
+    `claude://claude.ai/epitaxy/${SID}/../../settings`,
+    `claude://evil.example/epitaxy/${SID}`,
+    `claude://claude.ai/epitaxy/local_not-a-session`,
+    `CLAUDE://claude.ai/epitaxy/${SID}`,
+    `data:text/html,${SURL}`,
+  ]) {
+    for (const link of [{ url }, { kind: 'session', ref: 'x', url }, { kind: 'link', ref: 'x', url }]) {
+      assert.equal((await create(env, EDITOR, { title: 'x', source: Q1, links: [link] })).status, 400, `${JSON.stringify(link)} was accepted`);
+    }
+  }
+  assert.equal((await create(env, EDITOR, { title: 'x', source: Q1, links: [{ kind: 'session', ref: 'local_nope' }] })).status, 400);
+});
+
+test('the MCP tools tell an assistant the loop: In Progress with its session, its PR, Review, Done with evidence', async () => {
+  const env = await on();
+  const tools = (await call(env, send('POST', '/mcp', EDITOR, { jsonrpc: '2.0', id: 1, method: 'tools/list' })).then((r) => r.json())).result.tools;
+  const desc = (n) => tools.find((t) => t.name === n).description;
+  for (const n of ['update_task', 'create_task']) {
+    assert.match(desc(n), /In Progress/, n);
+    assert.match(desc(n), /session/i, n);
+    assert.match(desc(n), /Review/, n);
+    assert.match(desc(n), /evidence/i, n);
+    assert.match(desc(n), /pr/, n);
+  }
+  assert.match(desc('list_tasks'), /session/, 'list_tasks says how a session finds its own task');
+  // Guidance, not automation: nothing changes a task without a call.
+  const t = (await create(env, EDITOR, { title: 'x', source: Q1 })).body.task;
+  assert.equal(t.status, 'open');
+  assert.deepEqual(t.links, []);
+});

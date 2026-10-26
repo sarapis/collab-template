@@ -232,7 +232,7 @@ async function apiTasks(request, env, me, rest) {
   const out = (r) => (r.ok ? json({ task: r.task }, r.status) : json({ error: r.error }, r.status));
   if (!rest && m === 'GET') {
     return json({ tasks: await listTasks(request, env, me, {
-      status: q.get('status') || null, mine: q.get('mine') === '1', question: q.get('question') || null, pr: q.get('pr') || null }) });
+      status: q.get('status') || null, mine: q.get('mine') === '1', question: q.get('question') || null, pr: q.get('pr') || null, session: q.get('session') || null }) });
   }
   if (!rest && m === 'POST') return out(await createTask(await readBody(request), request, env, me));
   if (rest && m === 'GET') {
