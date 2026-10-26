@@ -73,10 +73,21 @@ test('the in-page anchor check can see a violation', () => {
 // The band layout's redirects (About replaces /start/ and /summary/; Decisions
 // are Activity) are routes too: a link to one lands on a page.
 const BAND_REDIRECTS = new Set(['/start/', '/summary/', '/decisions/']);
-const isRoute = (p) => matches(p) || (BAND && BAND_REDIRECTS.has(p));
+// Tasks (tasks.enabled, band only) are pages the Worker renders, not files and
+// not API routes: /tasks/, /tasks/new and /tasks/T7/.
+const TASKS = BAND && CONFIG.tasks?.enabled === true;
+const TASK_PAGE = /^\/tasks\/(new|T\d+\/)?$/;
+const isRoute = (p) => matches(p) || (BAND && BAND_REDIRECTS.has(p)) || (TASKS && TASK_PAGE.test(p));
 test('cross-document links all resolve', () => assert.deepEqual(d.danglingCrossLinks(P, isRoute), []));
 test('the cross-link check can see a missing page', () => {
   assert.equal(d.danglingCrossLinks([{ path: '/index.html', html: '<a href="/nowhere/">x</a>' }]).length, 1);
+});
+
+test('with tasks on, links to the task pages resolve, and nothing else under /tasks/ does', () => {
+  if (!TASKS) return;
+  const p = [{ path: '/index.html', html: '<a href="/tasks/">a</a><a href="/tasks/new?source_kind=question">b</a><a href="/tasks/T7/">c</a>' }];
+  assert.deepEqual(d.danglingCrossLinks(p, isRoute), []);
+  assert.equal(d.danglingCrossLinks([{ path: '/index.html', html: '<a href="/tasks/nope/">x</a>' }], isRoute).length, 1);
 });
 
 test('the cross-link check accepts a Worker route that is not a page', () => {
