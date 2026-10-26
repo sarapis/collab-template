@@ -310,6 +310,23 @@ test('a task ties to a GitHub pull request by either spelling, and is found by i
   assert.match((await page(env, '/tasks/T2/', READER)).body, /PR: <a href="https:\/\/github\.com\/sarapis\/ctfg-collab\/pull\/8" rel="noreferrer" target="_blank">sarapis\/ctfg-collab#8 ↗<\/a>/);
 });
 
+test('saving the task form keeps an assignee who has since been disabled', async () => {
+  // The form lists only people who can be chosen today. A task's current
+  // assignee must stay in it anyway, or the browser sends "Nobody yet" and a
+  // note-only save takes the task off them.
+  const env = await on();
+  const t = (await create(env, EDITOR, { title: 'x', source: Q1, assignee: { kind: 'person', key: READER } })).body.task;
+  await env.DB.prepare('UPDATE users SET disabled_at = ? WHERE email = ?').bind(new Date().toISOString(), READER).run();
+  const html = (await page(env, '/tasks/T1/', EDITOR)).body;
+  const m = html.match(/<select id="t-assignee" name="assignee">(.*?)<\/select>/s);
+  const selected = m && (m[1].match(/<option value="([^"]*)" selected>/) || [])[1];
+  assert.equal(selected, `person:${READER}`, 'the form no longer shows who has the task');
+  await call(env, form('/tasks/T1/', EDITOR, { base_updated_at: t.updated_at, status: t.status, assignee: selected ?? '', note: 'a progress note' }));
+  const after = (await readTask(env, EDITOR, 1)).body.task;
+  assert.equal(after.assignee?.kind, 'person', 'a note-only save unassigned the task');
+  assert.deepEqual(after.events.map((e) => e.kind), ['created', 'comment']);
+});
+
 test('saving the task form keeps a person assignee it was not asked to change', async () => {
   const env = await on();
   const t = (await create(env, EDITOR, { title: 'x', source: Q1, assignee: { kind: 'person', key: READER } })).body.task;
