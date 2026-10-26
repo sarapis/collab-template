@@ -134,6 +134,24 @@ test('retiring a question keeps its number, and the gap is the point', () => {
   assert.equal(third.numbers.d, 4, 'a retired number is never reused');
 });
 
+test('retiring the HIGHEST numbers does not hand them out again', () => {
+  // The case the test above misses: there, c (3) stays issued, so the maximum
+  // survives. When the last questions are the ones retired, the next free
+  // number must still come after them. ctfg-collab retired 46 and 47 and a new
+  // page was numbered 46 and 47 again (found 2026-10-26).
+  const first = reconcileLock(null, ['a', 'b', 'c']).lock;
+  const second = reconcileLock(first, ['a']).lock;
+  assert.deepEqual(second.retired, { b: 2, c: 3 });
+  const third = reconcileLock(second, ['a', 'd', 'e']).lock;
+  assert.equal(third.numbers.d, 4, 'a retired number is never reused');
+  assert.equal(third.numbers.e, 5);
+  // And a retired question that comes back still gets its own number, unique.
+  const fourth = reconcileLock(third, ['a', 'b', 'd', 'e']).lock;
+  const all = Object.values(fourth.numbers);
+  assert.equal(fourth.numbers.b, 2);
+  assert.equal(new Set(all).size, all.length, 'no two questions share a number');
+});
+
 test('a question that comes back gets its original number, not a new one', () => {
   // The references people wrote down were about this question, and still are.
   const first = reconcileLock(null, ['a', 'b']).lock;

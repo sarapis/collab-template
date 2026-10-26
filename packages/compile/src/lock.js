@@ -11,8 +11,11 @@ export function reconcileLock(existing, slugs) {
   const lock = { version: 1, numbers: { ...(existing?.numbers || {}) }, retired: { ...(existing?.retired || {}) } };
   const present = new Set(slugs);
 
+  // The next free number comes after every number ever issued, RETIRED ones
+  // included: counting only the live ones handed a retired number out again
+  // whenever the highest questions were the ones removed (v1.12.4).
   let max = 0;
-  for (const n of Object.values(lock.numbers)) max = Math.max(max, n);
+  for (const n of [...Object.values(lock.numbers), ...Object.values(lock.retired)]) max = Math.max(max, n);
 
   const assigned = [];
   for (const slug of slugs) {
