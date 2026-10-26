@@ -156,6 +156,7 @@ main blockquote > :last-child { margin-bottom: 0; }
 .task-status { display: inline-block; font-family: var(--font-sans); font-size: .72rem; font-weight: 600;
   padding: .05rem .45rem; border: 1px solid var(--border); border-radius: var(--radius); color: var(--muted-foreground); }
 .task-card[data-status="done"] .task-status, .task-card[data-status="dropped"] .task-status { opacity: .75; }
+.q-make-task { font-weight: 600; }
 .q-tasks, .q-actions { font-family: var(--font-sans); font-size: .82rem; margin: .4rem 0 0; color: var(--muted-foreground); }
 .task-ref { color: var(--muted-foreground); font-weight: 400; }
 .task-events { list-style: none; padding: 0; margin: .5rem 0 1rem; }

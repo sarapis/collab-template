@@ -3,6 +3,22 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.13.3 — A site with tasks on passes its own gate
+
+**Take this before turning tasks on.** With v1.13.0–v1.13.2, setting
+`tasks.enabled: true` failed the instance's gate (`npm test`) twice: every link
+to `/tasks/` counted as dangling, and the "Make a task" link's class was never
+styled. Nothing was wrong on the site; the gate did not know the task pages
+existed, because CI had never built a site with tasks on.
+
+- `test/gate.test.js` accepts `/tasks/`, `/tasks/new` and `/tasks/T7/` when
+  tasks are on (band only). It still rejects any other path under `/tasks/`.
+- `site/band.css` styles `.q-make-task`, a one-line change to every
+  band-layout site's stylesheet.
+- `npm run variant` (the band + rows build CI runs on the template) now turns
+  tasks on, so the gate is run against a site that has them. It was proved red
+  on exactly these two failures before the fix.
+
 ## v1.13.2 — The deploy applies the D1 schema itself
 
 **`.github/workflows/deploy.yml` changes: it now runs `worker/schema.sql` against

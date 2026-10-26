@@ -30,7 +30,12 @@ try {
   if (!/^project:\n/m.test(text)) throw new Error('site.config.yml has no `project:` block');
   text = text.replace(/^project:\n/m, 'project:\n  header_menus: true\n  pills: []\n  doc_groups:\n    - { label: Plans, docs: [plan] }\n');
   text = text.replace(/^site:\n/m, 'site:\n  layout: band\n')
-    + '\ncontent:\n  source: rows\n  export:\n    repo: example/target\n    path: docs/collab\n';
+    + '\ncontent:\n  source: rows\n  export:\n    repo: example/target\n    path: docs/collab\n'
+    // Tasks on (v1.13.0+), so the gate checks a site that has them: the task
+    // pages are Worker routes, and the question pages carry their chips and
+    // "Make a task". With them off here, v1.13.0 shipped a gate that failed on
+    // the first instance to turn them on (v1.13.3).
+    + '\ntasks:\n  enabled: true\n';
   // A self-contained page served as-is (site.passthrough), with classes this
   // site does not style: the gate must exempt it by name in the band layout
   // too, which it failed to do until v1.4.0 (served.js named it x.htmlindex.html).
