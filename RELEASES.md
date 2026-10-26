@@ -3,6 +3,23 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.12.4 — A retired question number is never handed out again
+
+**Take this before adding a question if your last questions were retired.** Only
+`packages/compile/src/lock.js` changes, plus a test. No setting, schema or
+existing number changes; a site's build output changes only where a new
+question would have taken a retired number.
+
+- **The next number was counted from the live questions only.** When the
+  highest-numbered questions were the ones retired, the next new question was
+  given a retired number again: ctfg-collab had retired 46 and 47, and a new
+  page's questions previewed as Q46 and Q47. That breaks the lock's one promise,
+  that "Q46" in an old message still means one question, and a retired question
+  that came back would then share its number. The next number now comes after
+  every number ever issued, retired ones included. A lock already affected is
+  not repaired by this: check `questions.lock` for a number in both `numbers`
+  and `retired` before taking it.
+
 ## v1.12.3 — Security fixes from the 2026-10-21 review: comments, disabled people, rows scripts
 
 **Take this now if your instance is public (`PUBLIC_READ=true`), runs content as
