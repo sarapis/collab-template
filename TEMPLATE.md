@@ -56,7 +56,7 @@ two codebases.
 | `project.doc_groups` | Band only. Named groups for the documents list: a list of `{label, docs: [slugs]}` (exactly those, in that order) or `{label, prefix}` |
 | `project.header_menus` | Band only. `true`: the header lists every document, as the `project.pills` plus one dropdown per group (and "More"); the rail stops listing them |
 | `tasks.enabled` | Band only. `true` turns on Tasks (v1.13.0): `/tasks/`, `/api/tasks`, four MCP tools, task lines on questions, a Tasks type in Activity and two notifications. `false` (the default) changes nothing |
-| `tasks.link_kinds` | How a task's `{kind, ref}` link renders, `{kind: {label, url}}` with `{ref}` in the URL, e.g. `hub: {label: Hub, url: "https://dash.example.org/tasks/{ref}"}`. GitHub PRs need nothing: `pr` with `owner/repo#12`, or a pasted PR URL |
+| `tasks.link_kinds` | How a task's `{kind, ref}` link renders, `{kind: {label, url}}` with `{ref}` in the URL, e.g. `hub: {label: Hub, url: "https://dash.example.org/tasks/{ref}"}`. Built in and needing nothing: `pr` (`owner/repo#12`, or a pasted PR URL) and `session` (a Claude session, `local_<id>` or its `claude://claude.ai/epitaxy/…` link; see "Tasks and the agents doing them") |
 | `gate.foreign_resources` | Other instances' D1 and KV ids and hostnames, which yours must never point at |
 
 `wrangler.jsonc` holds your Cloudflare account, Worker name, custom domain, D1
@@ -97,6 +97,32 @@ is `forViewer()`, which every door reads through (`band.js` `viewEnv`). Draft is
 never compiled. Archived still opens, with a banner, and leaves the menus. A
 question's status (open, resolved, hidden, draft) is its attributes;
 `draft=true` keeps it off the site and in the export's `drafts.json`.
+
+## Tasks and the agents doing them
+
+With `tasks.enabled: true`, a task records the work a question, an answer or a
+decision created (RELEASES.md v1.13.0). When an AI assistant does that work,
+it keeps the task current through the MCP tools, and the tool descriptions
+tell it how. Point your agents at this list too (an instance's `CLAUDE.md` is
+a good place):
+
+1. **Starting:** `update_task` to In Progress (`"in_progress"`), adding the
+   session as a link: `{kind: "session", ref: "local_<id>"}`. The Claude
+   desktop app's own link to a session, `claude://claude.ai/epitaxy/local_<id>`,
+   works too. A person on the task page can then open the session that is
+   doing the work.
+2. **Opening a pull request:** add it, `{kind: "pr", ref: "owner/repo#12"}`.
+3. **Ready for a person:** Review (`"review"`).
+4. **Done** (`"done"`, or `"dropped"`) needs a note with the evidence: what
+   was verified, where it is live, what the PR or its checks show. That note
+   is what the people who answered the question are shown.
+
+A session finds its own task with `list_tasks {session: "local_<id>"}`, and a
+PR's task with `list_tasks {pr: "owner/repo#12"}`. ⚠️ None of this is
+automatic: every step is a call an editor (or an editor's agent token) makes,
+so a task never moves without someone saying so. A session link is the one
+non-http address a task may carry, matched whole; any other `claude://` path
+or scheme is refused.
 
 ## Content as rows
 

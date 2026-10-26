@@ -3,6 +3,44 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.13.4 — A Claude session keeps its task up to date
+
+**Only `worker/src/tasks.js`, `worker/src/mcp.js` and `worker/src/index.js`
+change, plus tests and TEMPLATE.md.** No schema or setting changes, and a site
+with tasks off is unaffected. The compiler and `conformance/` are unchanged.
+
+A session doing a task's work had no tie to the task. Now it has one, and the
+tools say how to keep it current. They do not do it automatically.
+
+- **A `session` link kind**, built in: `{kind: "session", ref: "local_<id>"}`,
+  or the Claude desktop app's own link `claude://claude.ai/epitaxy/local_<id>`
+  pasted with or without a kind. Both are stored the same way and render as
+  "Session", opening the app (not in a new tab).
+  - ⚠️ This is the ONE non-http address a link may carry, matched whole: the
+    exact host `claude.ai`, the path `/epitaxy/`, and an id of the form
+    `local_<uuid>`.
+  - Everything else is still refused: `javascript:`, `data:`, any other
+    `claude://` path or host, a path that climbs out with `../`, and an
+    upper-case scheme. So is a `claude://` URL under any other kind.
+- **A session finds its task.** `?session=` on `/api/tasks`, and `session` on
+  `list_tasks`, accept either spelling, as `pr` does.
+- **The loop, told rather than done.** The `create_task` and `update_task`
+  descriptions now spell it out:
+  1. In Progress plus your session link when you start;
+  2. a `pr` link when you open one;
+  3. Review when it is ready;
+  4. Done (or Dropped) with a note giving the evidence.
+  TEMPLATE.md, "Tasks and the agents doing them", says the same for an
+  instance's own agents.
+
+Tests: 504 → 507 (`worker/test/tasks.test.js`):
+- a session by URL and by id, rendered, and found by either spelling;
+- 21 refused addresses (seven URLs, each as a bare link, a `session` and a
+  `link`), plus a malformed id;
+- the loop in the tool descriptions, with nothing changing on its own.
+
+All three fail against v1.13.3.
+
 ## v1.13.3 — A site with tasks on passes its own gate
 
 **Take this before turning tasks on.** With v1.13.0–v1.13.2, setting

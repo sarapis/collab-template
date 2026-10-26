@@ -20,16 +20,19 @@ const SOURCE = { type: 'object', description: 'Where the task came from: {kind: 
   properties: { kind: { type: 'string' }, ref: { type: 'string' }, anchor: { type: 'string' } }, required: ['kind'] };
 const ASSIGNEE = { type: 'object', description: '{kind: "group", key: an audience or addressee} or {kind: "person", key: their email}',
   properties: { kind: { type: 'string' }, key: { type: 'string' } } };
-const LINKS = { type: 'array', description: 'e.g. [{kind: "pr", ref: "owner/repo#12"}] (a pasted GitHub PR URL works too), or [{kind: "hub", ref: "<id>"}] where the site configures that kind',
+const LINKS = { type: 'array', description: 'e.g. [{kind: "pr", ref: "owner/repo#12"}] (a pasted GitHub PR URL works too); [{kind: "session", ref: "local_<id>"}] (or the Claude app link claude://claude.ai/epitaxy/local_<id>) for the session doing the work; or [{kind: "hub", ref: "<id>"}] where the site configures that kind',
   items: { type: 'object', properties: { kind: { type: 'string' }, ref: { type: 'string' }, url: { type: 'string' } } } };
+// ⚠️ The working loop, told to an assistant in the descriptions, never done for
+// it: a task changes only when somebody (or their agent) says so, with a reason.
+const LOOP = 'The loop, when you are the one doing a task’s work: (1) when you start, set it In Progress (status "in_progress") and add your session as a link ({kind: "session", ref: "local_<your session id>"}); (2) when you open a pull request, add it as a {kind: "pr", ref: "owner/repo#12"} link; (3) when it is ready for a person to look at, set it Review ("review"); (4) Done ("done", or "dropped") needs a note with the evidence: what was verified, where it is live, what the PR or its checks show. Nothing here happens on its own: each step is a call you make.';
 const TASK_TOOLS = [
-  { name: 'list_tasks', description: 'The tasks on this site: the work questions, answers and decisions created. Filter by status (idea, open, in_progress, review, done, dropped), mine, a question ("Q4"), or a GitHub PR ("owner/repo#12" or its URL).',
-    inputSchema: { type: 'object', properties: { status: { type: 'string' }, mine: { type: 'boolean' }, question: { type: 'string' }, pr: { type: 'string' } } } },
+  { name: 'list_tasks', description: 'The tasks on this site: the work questions, answers and decisions created. Filter by status (idea, open, in_progress, review, done, dropped), mine, a question ("Q4"), a GitHub PR ("owner/repo#12" or its URL), or a Claude session ("local_<id>" or its claude:// link): a session finds the task it is working on that way.',
+    inputSchema: { type: 'object', properties: { status: { type: 'string' }, mine: { type: 'boolean' }, question: { type: 'string' }, pr: { type: 'string' }, session: { type: 'string' } } } },
   { name: 'read_task', description: 'One task (T7 or 7): where it came from, who has it, its links, and its whole history and comments.',
     inputSchema: { type: 'object', properties: { number: { type: ['number', 'string'] } }, required: ['number'] } },
-  { name: 'create_task', description: 'Make a task as the authenticated person (editors only). Say what you are creating first. Give its source, so the people who answered can see it.',
+  { name: 'create_task', description: `Make a task as the authenticated person (editors only). Say what you are creating first. Give its source, so the people who answered can see it. ${LOOP}`,
     inputSchema: { type: 'object', properties: { title: { type: 'string' }, body: { type: 'string' }, status: { type: 'string' }, source: SOURCE, assignee: ASSIGNEE, links: LINKS }, required: ['title', 'source'] } },
-  { name: 'update_task', description: 'Change a task (editors only). Pass base_updated_at from read_task. Done or Dropped needs a note saying what was done or why. assignee: null clears it.',
+  { name: 'update_task', description: `Change a task (editors only). Pass base_updated_at from read_task. assignee: null clears it. ${LOOP}`,
     inputSchema: { type: 'object', properties: { number: { type: ['number', 'string'] }, base_updated_at: { type: 'string' }, status: { type: 'string' }, note: { type: 'string' },
       title: { type: 'string' }, body: { type: 'string' }, assignee: ASSIGNEE, add_links: LINKS, remove_links: LINKS }, required: ['number', 'base_updated_at'] } },
 ];
@@ -166,7 +169,7 @@ async function call(name, args, env, request, me, handlers) {
 async function taskTool(name, args, env, request, me) {
   if (!tasksOn(env)) return text(`No tool named "${name}".`);
   if (!me?.authenticated || me.disabled) return text('Not authenticated: tasks are for people on this project.');
-  if (name === 'list_tasks') return text(await listTasks(request, env, me, { status: args.status, mine: !!args.mine, question: args.question, pr: args.pr }));
+  if (name === 'list_tasks') return text(await listTasks(request, env, me, { status: args.status, mine: !!args.mine, question: args.question, pr: args.pr, session: args.session }));
   if (name === 'read_task') {
     const t = await readTask(request, env, me, args.number);
     return text(t || `No such task T${String(args.number).replace(/^T/i, '')}. Use list_tasks.`);
