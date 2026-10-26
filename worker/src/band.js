@@ -13,10 +13,11 @@
 // others do. A handler that read env.ASSETS directly would see the build.
 import { HOST } from './site.generated.js';
 import { liveVersion, forViewer, statusOf, sourceByPath, readVersion, liveId, realAssets, markWrapped, isWrapped } from './version.js';
-import { canRead } from './identity.js';
+import { canRead, isEditor } from './identity.js';
 import { flag } from './flag.js';
 import * as R from './render.js';
 import { waitsOnAny } from './waits.js';
+import { tasksOn, taskPages, taskActivity, tasksByQuestion, questionTasksLine, makeTaskHref } from './tasks.js';
 
 export const hostOf = (env) => env.COLLAB_HOST || HOST;
 export const isBand = (env) => hostOf(env)?.settings?.layout === 'band';
@@ -129,7 +130,7 @@ export async function commentsFor(env, me, docs = null) {
   return out;
 }
 
-async function activityLive(env, settings, version, view, me) {
+async function activityLive(env, settings, version, view, me, request) {
   const ids = new Set(view.manifest.questions.map((q) => q.id));
   const docs = new Set(view.manifest.docs.map((d) => d.slug));
   const [a, c] = await Promise.all([
@@ -140,6 +141,19 @@ async function activityLive(env, settings, version, view, me) {
     answers: (a.results || []).filter((r) => ids.has(r.question_id)),
     comments: c.slice(-50).reverse(),
     versions: await versionsList(env, settings, version),
+    // Absent (not empty) when tasks are off, so Activity offers no Tasks filter.
+    ...(tasksOn(env) ? { tasks: await taskActivity(request, env, me) } : {}),
+  };
+}
+
+// What the questions page and the margin show of tasks: a line per question
+// that spawned any, and "Make a task" for an editor. Empty when tasks are off.
+async function taskExtras(request, env, me) {
+  if (!tasksOn(env)) return {};
+  const by = await tasksByQuestion(request, env, me);
+  return {
+    taskLine: (q) => questionTasksLine(by.get(q.number)),
+    makeTask: isEditor(me) ? (q) => `<p class="q-actions"><a class="q-make-task" href="${makeTaskHref(q)}">Make a task</a></p>` : null,
   };
 }
 
@@ -147,7 +161,7 @@ async function activityLive(env, settings, version, view, me) {
 
 export function ctxFor(env, view) {
   const host = hostOf(env);
-  return { version: view, project: view.manifest.project || {}, settings: host.settings, navArtifacts: host.nav_artifacts, chat: host.chat };
+  return { version: view, project: view.manifest.project || {}, settings: host.settings, navArtifacts: host.nav_artifacts, chat: host.chat, tasks: tasksOn(env) };
 }
 
 const docTitle = (view, slug) => view.manifest.docs.find((d) => d.slug === slug)?.title || slug;
@@ -171,11 +185,16 @@ export async function bandPage(request, env, me, url) {
   const render = (title, body, extra = {}) => page(R.layout(ctx, { path: p, title, body, ...extra }), 200, env);
 
   if (p === '/manifest.json' || p === '/sections.json' || p.startsWith('/source/')) return viewAssets(env, request, me).fetch(new Request(url));
+  // Tasks (tasks.js), when the instance turned them on: null otherwise, and for
+  // a task this viewer may not see, so either falls through to a 404.
+  const tasks = await taskPages(request, env, me, url,
+    (title, body, extra = {}) => R.layout(ctx, { path: p, title, body, ...extra }), (html, code) => page(html, code, env));
+  if (tasks) return tasks;
   if (p === '/') return render(view.manifest.project?.name || 'Home', R.homePage(view, { waiting: await waitingFor(env, view.manifest, me) }));
   if (p === '/about/') return render('About', R.aboutPage(view), { doc: 'start' });
   if (p === '/get-involved/') return render('Get involved', R.getInvolvedPage(view, { origin: url.origin, publicRead: flag(env, 'PUBLIC_READ') }));
-  if (p === '/questions/') return render('Questions', R.questionsPage(view));
-  if (p === '/activity/') return render('Activity', R.activityPage(view, await activityLive(env, host.settings, version, view, me), url.searchParams.get('type')));
+  if (p === '/questions/') return render('Questions', R.questionsPage(view, await taskExtras(request, env, me)));
+  if (p === '/activity/') return render('Activity', R.activityPage(view, await activityLive(env, host.settings, version, view, me, request), url.searchParams.get('type')));
   if (pages.includes(p + '/')) return redirect(p + '/' + url.search);
 
   // A document. ⚠️ One that exists but this viewer may not see answers exactly
@@ -189,7 +208,7 @@ export async function bandPage(request, env, me, url) {
     const d = view.manifest.docs.find((x) => x.slug === slug);
     const crumb = d.type === 'decision' ? { href: '/activity/?type=decisions', label: 'Decisions' }
       : d.type === 'post' ? { href: '/activity/?type=posts', label: 'Activity' } : null;
-    return render(d.title, R.docPage(view, slug), { doc: slug, status: status === 'published' ? null : status, crumb });
+    return render(d.title, R.docPage(view, slug, await taskExtras(request, env, me)), { doc: slug, status: status === 'published' ? null : status, crumb });
   }
   return null;
 }

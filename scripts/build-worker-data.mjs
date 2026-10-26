@@ -23,7 +23,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
-import { settingsFrom, settingsProblems } from '../worker/src/settings.js';
+import { settingsFrom, settingsProblems, tasksFrom } from '../worker/src/settings.js';
 import { digest, sourcesOf } from '../conformance/digest.mjs';
 
 const configText = fs.readFileSync('site.config.yml', 'utf8');
@@ -153,6 +153,9 @@ const host = {
   nav_artifacts: config.site?.nav?.artifacts || [],
   chat: { enabled: !!config.chat?.enabled, retention_days: config.chat?.retention_days ?? 90 },
   public: { repo: pub.repo || null, contact: pub.contact || null, llms_txt: pub.llms_txt !== false },
+  // Only when configured, so a site that never mentions tasks generates
+  // exactly the file it did before v1.13.0.
+  ...(config.tasks != null ? { tasks: tasksFrom(config) } : {}),
 };
 
 const out = `// GENERATED from site.config.yml by scripts/build-worker-data.mjs. Do not edit.

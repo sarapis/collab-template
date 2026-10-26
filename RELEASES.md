@@ -3,6 +3,92 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.13.0 — Tasks: the work a question creates, on the site
+
+**`worker/schema.sql` changes: it adds `tasks` and `task_events`** (both
+`CREATE … IF NOT EXISTS`; apply it at deploy). **Off by default:** an instance
+that does not set `tasks.enabled: true` serves byte-identical pages and answers
+(measured below). The compiler and `conformance/` are unchanged, so a host that
+pins only those (Databook) needs nothing.
+
+Questions resolve into prose, but the work a decision creates had nowhere to
+live on the site, so the people who answered could not see what was being done
+about it. A task records that work: where it came from, who has it, where it
+stands, and what was done.
+
+- **What a task is.** It has:
+  - a T-number (T1, T2 …), given out once and never reused (a task is never
+    deleted; Dropped is a status);
+  - a title and a body;
+  - a status: Idea, Open, In Progress, Review, Done or Dropped. Done and Dropped
+    need a closing note;
+  - an assignee: a person on the roster, or a group (the same groups questions
+    use: audiences and `to=` addressees);
+  - links: `pr` is built in, as `owner/repo#12` or a pasted GitHub PR URL, both
+    stored the same way. Other kinds come from `tasks.link_kinds`, e.g. a Hub id
+    through a URL pattern;
+  - an append-only history, with comments.
+- **Where it came from:** a question (`Q4`, keeping its `resolved=` anchor), one
+  answer, a decision (`doc#anchor`), a comment, a request, or something
+  external. A question lists the tasks it spawned, on Questions and in the
+  margin; a task links back.
+- **Who:**
+  - Editors (admins, contributors), and an editor's agent token, create and
+    change tasks.
+  - Everyone signed in reads and comments. That includes a public site: a task
+    names people and carries working notes. There is no setting to open them
+    yet.
+  - A task follows its source: one from a document the viewer cannot see (a
+    draft, a members-only page) is hidden from them at every door. One read rule
+    in `worker/src/tasks.js` serves all of them.
+- **Where it shows:**
+  - `/tasks/` (filters: status, mine, `?question=Q4`), `/tasks/T7/`, and
+    `/tasks/new`. "Make a task" on a question pre-fills its source. Every form
+    works with no script, and a form posted from another origin is refused.
+  - Activity gains a Tasks type: made, Done and Dropped, with the note.
+  - The Tools box gains Tasks.
+  - `/api/tasks` (GET, POST, GET and PATCH `/:number`, with `?pr=` to find a
+    PR's task).
+  - MCP gains `list_tasks`, `read_task`, `create_task` and `update_task`.
+    `update_task` needs `base_updated_at`, and a stale write is refused (409).
+- **Notifications, on the site only (email later):**
+  - "N tasks assigned to you", for a person or their groups;
+  - "T7 is done", sent to everyone who answered the question it came from. This
+    closes the loop for the people who answered.
+- `worker/test/d1.js` now runs a batch without yielding between statements, as
+  D1 does. The old shim let two batches interleave, so the race the numbering
+  must survive could not even be tested.
+
+**Off by default, measured** against v1.12.4 on the band fixture:
+- 176 answers compared (pages, API, MCP `tools/list`; anonymous, reader,
+  editor, admin; public and private). 174 are byte-identical.
+- The other 2 are `/api/tasks` and `/api/tasks/1` for a stranger on a private
+  site: 404 before (no such route), 401 now. Every route in the table is closed
+  to strangers by default.
+- `_site/`, `build/`, `worker/src/site.generated.js` (`tasks` is generated only
+  when configured), `packages/compile` and `conformance/` are byte-identical.
+- The Worker bundle grows 167.56 → 178.93 KiB gzip.
+
+**Instances:** take the version and apply `worker/schema.sql`. To use tasks, set
+`site.layout: band` and `tasks.enabled: true` (and optionally
+`tasks.link_kinds`). A classic-layout instance cannot turn them on: the build
+fails with a sentence saying why.
+
+**Not in v1.13.0:**
+- due dates, priority, subtasks, a board view;
+- email;
+- the live status of a linked Hub task or PR;
+- tasks created automatically;
+- bulk edit;
+- tasks in the rows content export or in git.
+
+Tests: 471 → 499, in both the default and the band+rows variant:
+- `worker/test/tasks.test.js` (20): numbering through a drop and a race; the
+  read rule on every door; the write gate including agent tokens; closing notes;
+  409; source and assignee validation; links and PRs; forms; Activity; both
+  notifications; MCP; off by default; the task form keeping its assignee.
+- The read gate now also covers the four `/api/tasks` routes.
+
 ## v1.12.4 — A retired question number is never handed out again
 
 **Take this before adding a question if your last questions were retired.** Only

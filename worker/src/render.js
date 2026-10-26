@@ -98,6 +98,7 @@ const ICONS = {
   people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/>',
   content: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
   log: '<path d="M4 5h16v11H9l-5 4z"/>',
+  tasks: '<path d="M4 6.5l2 2 3.5-3.5M4 13.5l2 2 3.5-3.5M12.5 7h7.5M12.5 14h7.5M4.5 19.5h15.5"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
 };
 const icon = (name) => `<svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
@@ -179,7 +180,9 @@ export function layout(ctx, page) {
   if (page.crumb) crumbs.push(`<a href="${esc(page.crumb.href)}">${esc(page.crumb.label)}</a>`);
   if (path !== '/') crumbs.push(`<span aria-current="page">${esc(page.title)}</span>`);
 
-  const toolLinks = TOOLS.map((t) => `<a class="tool" href="${t.href}"${cur(path === t.href)} title="${esc(t.label)}">${icon(t.icon)}<span class="tool-label">${esc(t.label)}</span></a>`).join('');
+  // Tasks (tasks.enabled) sit after Questions, where the work they come from is.
+  const toolList = ctx.tasks ? [...TOOLS.slice(0, 3), { href: '/tasks/', label: 'Tasks', icon: 'tasks' }, ...TOOLS.slice(3)] : TOOLS;
+  const toolLinks = toolList.map((t) => `<a class="tool" href="${t.href}"${cur(path === t.href)} title="${esc(t.label)}">${icon(t.icon)}<span class="tool-label">${esc(t.label)}</span></a>`).join('');
   const adminLinks = ADMIN(settings.content.source === 'rows')
     .map((a) => `<a class="tool" href="${a.href}"${cur(path === a.href)} title="${esc(a.label)}">${icon(a.icon)}<span class="tool-label">${esc(a.label)}</span></a>`).join('');
 
@@ -296,6 +299,7 @@ export function activityItems(version, live = {}) {
   for (const a of live.answers || []) items.push({ type: 'answers', at: a.created_at, answer: a });
   for (const c of live.comments || []) items.push({ type: 'answers', at: c.created_at, comment: c });
   for (const v of live.versions || []) items.push({ type: 'updates', at: v.published_at, version: v });
+  for (const t of live.tasks || []) items.push({ type: 'tasks', at: t.at, taskEvent: t });
   return items.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
 }
 
@@ -327,25 +331,39 @@ function activityItem(version, it) {
     const where = d ? `<a href="/${esc(d.slug)}/">${esc(d.title)}</a>` : 'the project';
     return `<article class="card activity-item" data-type="answers"><p class="counts">Comment · ${esc(day(it.at))} · ${esc(it.comment.author_name)} on ${where}</p><p>${esc(it.comment.body)}</p></article>`;
   }
+  if (it.taskEvent) {
+    const e = it.taskEvent;
+    const t = e.task;
+    const ref = `<a href="${esc(t.href)}">${esc(t.ref)}</a>`;
+    const from = t.source.href ? `<a href="${esc(t.source.href)}">${esc(t.source.label)}</a>` : esc(t.source.label);
+    const line = e.what === 'created'
+      ? `${ref} made from ${from}: ${esc(t.title)}`
+      : `${ref} ${e.what === 'done' ? 'Done' : 'Dropped'}: ${esc(e.note || '')}`;
+    return `<article class="card activity-item" data-type="tasks"><p class="counts">Task · ${esc(day(it.at))} · ${esc(e.by)}</p><p>${line}</p>${e.what === 'created' ? '' : `<p class="counts">${esc(t.title)}</p>`}</article>`;
+  }
   const v = it.version;
   return `<article class="card activity-item" data-type="updates"><p class="counts">Site update · ${esc(String(it.at || '').replace('T', ' ').slice(0, 16))}${v.published_by ? ` · ${esc(v.published_by)}` : ''}</p>
 <p>${v.id != null ? `Version ${esc(v.id)}, ` : 'The live version, '}digest <code>${esc(String(v.digest).slice(0, 12))}</code>${v.reason ? `: ${esc(v.reason)}` : ''}${v.live ? ' <span class="tag">live</span>' : ''}</p></article>`;
 }
 
 export function activityPage(version, live, type) {
-  const known = ACTIVITY_TYPES.some((t) => t.key === type);
+  // Tasks are a type only where the instance turned them on (`live.tasks` set).
+  const types = live?.tasks ? [...ACTIVITY_TYPES, { key: 'tasks', label: 'Tasks' }] : ACTIVITY_TYPES;
+  const known = types.some((t) => t.key === type);
   const want = known ? type : null;
   const items = activityItems(version, live).filter((it) => !want || it.type === want);
-  const filters = [{ key: null, label: 'All' }, ...ACTIVITY_TYPES]
+  const filters = [{ key: null, label: 'All' }, ...types]
     .map((t) => `<a class="filter" href="/activity/${t.key ? `?type=${t.key}` : ''}" aria-pressed="${t.key === want ? 'true' : 'false'}">${esc(t.label)}</a>`).join('');
-  const label = want ? ACTIVITY_TYPES.find((t) => t.key === want).label : null;
+  const label = want ? types.find((t) => t.key === want).label : null;
   return `<h1>Activity</h1>
 <p class="lede">Everything that happened on this site, newest first${label ? `: ${esc(label.toLowerCase())} only` : ''}.</p>
 <nav class="filters" aria-label="Filter activity">${filters}</nav>
 ${items.length ? items.map((it) => activityItem(version, it)).join('\n') : '<p class="muted">Nothing of this kind yet.</p>'}`;
 }
 
-export function questionsPage(version) {
+// `extra` (band.js, when tasks are on): taskLine(q) lists the tasks a question
+// spawned; makeTask(q), for an editor, offers to make one.
+export function questionsPage(version, extra = {}) {
   const m = version.manifest;
   const declared = m.project?.groups || [];
   const present = [...new Set(m.questions.map((q) => q.group))];
@@ -359,7 +377,7 @@ export function questionsPage(version) {
 <header class="q-head"><a class="q-num" href="/${esc(q.doc)}/${q.margin ? `#q${q.number}` : ''}">Q${q.number}</a> <span class="q-audience">${esc(q.audience)}</span>${q.to?.length ? ` <span class="q-to">to ${esc(q.to.map((g) => groupName(m, g)).join(', '))}</span>` : ''}${m.asked_rounds?.[q.asked]?.new ? '<span class="q-audience">· new this round</span>' : ''}</header>
 <div class="q-body">${q.body}</div>
 ${q.why ? `<div class="q-why"><strong>Why asked:</strong> ${q.why}</div>` : ''}${see}
-${q.resolved ? `<p class="q-resolved-note">resolved · see <a href="/${esc(q.doc)}/${esc(q.resolved)}">this passage</a></p>` : ''}
+${q.resolved ? `<p class="q-resolved-note">resolved · see <a href="/${esc(q.doc)}/${esc(q.resolved)}">this passage</a></p>` : ''}${extra.taskLine ? extra.taskLine(q) : ''}${extra.makeTask ? extra.makeTask(q) : ''}
 <div class="q-answers" data-answers-for="${esc(q.id)}" data-round-opened="${esc(m.asked_rounds?.[q.asked]?.opened || '')}"></div>
 </article>`;
   };
@@ -439,8 +457,16 @@ ${own ? fragment(version, 'get-involved') : ''}
 <p>claude.ai and Claude on a phone cannot send a token; add <code>${esc(origin)}/connect</code> as a custom connector instead and sign in when it asks.</p>`;
 }
 
-export function docPage(version, slug) {
-  return fragment(version, slug);
+// The margin questions of a document gain their tasks (and, for an editor, Make
+// a task) just before their answers, the same lines the questions page shows.
+export function docPage(version, slug, extra = {}) {
+  const html = fragment(version, slug);
+  if (!extra.taskLine && !extra.makeTask) return html;
+  const byId = new Map(version.manifest.questions.map((q) => [q.id, q]));
+  return html.replace(/<div class="q-answers" data-answers-for="([^"]+)">/g, (whole, id) => {
+    const q = byId.get(id.replace(/&amp;/g, '&'));
+    return q ? `${extra.taskLine ? extra.taskLine(q) : ''}${extra.makeTask ? extra.makeTask(q) : ''}${whole}` : whole;
+  });
 }
 
 // The public index at /llms.txt for a PUBLIC rows instance: built from what an

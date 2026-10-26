@@ -197,6 +197,7 @@ something only Databook has. "Today" says what the Worker host already does.
 | Answers and comments as annotations; moderation and review queues; spot checks; public credit | 2, 14, 16 | DATABOOK-ONLY | Answers, comments and revisions in D1, roster-only writes | |
 | The Laravel site frame, `.db-*` styling, the orange Analysis identity | 13, 34 | DATABOOK-ONLY | Eleventy, `design/tokens.css` | The Worker host themes through tokens only |
 | The Workspace (`/my/projects`, `/workspace`) and "← Workspace" | 27 | DATABOOK-ONLY | n/a | The Worker breadcrumb's first crumb is the project |
+| Tasks: the work a question, an answer, a decision or a request creates, with a T-number, a status, an assignee, links (GitHub PRs built in) and a history | — | WORKER-ONLY for now | Built in v1.13.0, band only, off by default (`tasks.enabled`; `worker/src/tasks.js`) | D1, never git. Read by signed-in people only, and only where the task's source document is readable. Databook's "questions as tasks in Do Next" is its own design |
 | Not built anywhere yet: request to join, questions as tasks in Do Next, suggestions to PRs, project chat | phases 2b to 7 | n/a | The Worker host already has an assistant (`/api/chat`) | Port only once Databook builds and measures them |
 
 ## Part 3. What a later instance needs that the template must not block

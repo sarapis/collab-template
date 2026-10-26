@@ -55,6 +55,8 @@ two codebases.
 | `project.pills` | Band only. The documents shown as header pills, a list of slugs in order. Unset, every listed document |
 | `project.doc_groups` | Band only. Named groups for the documents list: a list of `{label, docs: [slugs]}` (exactly those, in that order) or `{label, prefix}` |
 | `project.header_menus` | Band only. `true`: the header lists every document, as the `project.pills` plus one dropdown per group (and "More"); the rail stops listing them |
+| `tasks.enabled` | Band only. `true` turns on Tasks (v1.13.0): `/tasks/`, `/api/tasks`, four MCP tools, task lines on questions, a Tasks type in Activity and two notifications. `false` (the default) changes nothing |
+| `tasks.link_kinds` | How a task's `{kind, ref}` link renders, `{kind: {label, url}}` with `{ref}` in the URL, e.g. `hub: {label: Hub, url: "https://dash.example.org/tasks/{ref}"}`. GitHub PRs need nothing: `pr` with `owner/repo#12`, or a pasted PR URL |
 | `gate.foreign_resources` | Other instances' D1 and KV ids and hostnames, which yours must never point at |
 
 `wrangler.jsonc` holds your Cloudflare account, Worker name, custom domain, D1

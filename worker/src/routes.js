@@ -18,6 +18,11 @@ export const ROUTES = [
   { method: 'POST',  path: '/api/comments' },
   { method: 'GET',   path: '/api/notifications' },
   { method: 'POST',  path: '/api/seen' },
+  // Tasks (tasks.enabled; worker/src/tasks.js). 404 on an instance without them.
+  { method: 'GET',   path: '/api/tasks' },
+  { method: 'POST',  path: '/api/tasks' },
+  { method: 'GET',   path: '/api/tasks/:number' },
+  { method: 'PATCH', path: '/api/tasks/:number' },
   { method: 'POST',  path: '/mcp' },
   { method: 'GET',   path: '/auth/login' },
   { method: 'GET',   path: '/auth/logout' },

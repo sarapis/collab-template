@@ -13,6 +13,7 @@ import { handleAdmin } from './admin.js';
 import { handleContent } from './content.js';
 import { isBand, bandPage, wrapBuilt, viewEnv, viewFor, publicIndexFor, hostOf, commentsFor } from './band.js';
 import { groupName, waitsOn, waitsOnAny } from './waits.js';
+import { tasksOn, listTasks, readTask, createTask, updateTask, taskNotifications } from './tasks.js';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
@@ -216,7 +217,30 @@ async function getNotifications(request, env, me) {
     }
   }
 
+  items.push(...await taskNotifications(request, env, me, since));
+
   return json({ items, total: items.reduce((n, i) => n + (i.unseen || 0), 0) });
+}
+
+// Tasks (tasks.js). ⚠️ Off unless the instance turned them on, and then for
+// signed-in people only, even on a public site: a task names people.
+async function apiTasks(request, env, me, rest) {
+  if (!tasksOn(env)) return json({ error: 'no such route' }, 404);
+  if (!me.authenticated || me.disabled) return json({ error: 'not signed in' }, 401);
+  const m = request.method.toUpperCase();
+  const q = new URL(request.url).searchParams;
+  const out = (r) => (r.ok ? json({ task: r.task }, r.status) : json({ error: r.error }, r.status));
+  if (!rest && m === 'GET') {
+    return json({ tasks: await listTasks(request, env, me, {
+      status: q.get('status') || null, mine: q.get('mine') === '1', question: q.get('question') || null, pr: q.get('pr') || null }) });
+  }
+  if (!rest && m === 'POST') return out(await createTask(await readBody(request), request, env, me));
+  if (rest && m === 'GET') {
+    const t = await readTask(request, env, me, rest);
+    return t ? json({ task: t }) : json({ error: 'no such task' }, 404);
+  }
+  if (rest && m === 'PATCH') return out(await updateTask(rest, await readBody(request), request, env, me));
+  return json({ error: 'method not allowed' }, 405);
 }
 
 // ⚠️ First write wins. `ON CONFLICT DO NOTHING` keeps the original timestamp,
@@ -433,6 +457,7 @@ export const siteHandler = {
     if (p === '/api/comments' && m === 'POST') return postComment(request, env, me);
     if (p === '/api/notifications' && m === 'GET') return getNotifications(request, env, me);
     if (p === '/api/seen' && m === 'POST') return postSeen(request, env, me);
+    if (p === '/api/tasks' || p.startsWith('/api/tasks/')) return apiTasks(request, env, me, p.split('/')[3] || null);
     if (p.startsWith('/api/admin/')) return handleAdmin(request, env, me, url);
     if (p === '/api/version' || p.startsWith('/api/content') || p.startsWith('/api/versions')) return handleContent(request, env, me, url);
     if (p === '/api/chat' && m === 'POST') return handleChat(request, env, me);

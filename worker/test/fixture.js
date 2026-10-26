@@ -27,11 +27,13 @@ export function sampleVersion(root = PROJECT) {
 
 export const sampleFiles = (root = PROJECT) => readProject({ root });
 
-export function host({ layout = 'band', source = 'git', tools, groups } = {}) {
+export function host({ layout = 'band', source = 'git', tools, groups, tasks } = {}) {
   return {
     settings: { layout, content: { source, export: null } },
     nav_artifacts: [], chat: { enabled: false, retention_days: 90 },
     public: { repo: null, contact: 'the team', llms_txt: true },
+    // Absent unless a test turns tasks on, as a site that never configures them.
+    ...(tasks ? { tasks } : {}),
   };
 }
 
@@ -81,13 +83,13 @@ export async function seedPeople(db) {
   }
 }
 
-export async function bandEnv({ version = sampleVersion(), publicRead = false, source = 'git', pages = {}, db } = {}) {
+export async function bandEnv({ version = sampleVersion(), publicRead = false, source = 'git', pages = {}, db, tasks } = {}) {
   db = db || d1();
   await seedPeople(db);
   const files = sampleFiles();
   return {
     DB: db, ASSETS: assets(version, pages), AGENT_TOKENS: '{}', PUBLIC_READ: publicRead ? 'true' : 'false', DEV_SIGN_IN: 'true',
-    COLLAB_HOST: host({ source }), COLLAB_CONFIG_TEXT: files['site.config.yml'],
+    COLLAB_HOST: host({ source, tasks }), COLLAB_CONFIG_TEXT: files['site.config.yml'],
   };
 }
 
