@@ -32,12 +32,18 @@ export function d1() {
   return {
     raw: db,
     prepare: (sql) => new Statement(db, sql),
-    // D1's batch is a transaction: all or nothing.
+    // D1's batch is a transaction: all or nothing, and one at a time.
+    // ⚠️ Run WITHOUT yielding between statements. Awaiting each one let a second
+    // batch start inside the first's transaction, which D1 never does: two
+    // requests creating a task at once must each see the other's row or none.
     async batch(stmts) {
       db.exec('BEGIN');
       try {
         const out = [];
-        for (const s of stmts) out.push(await s.run());
+        for (const s of stmts) {
+          const r = db.prepare(s.sql).run(...s.args);
+          out.push({ success: true, meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } });
+        }
         db.exec('COMMIT');
         return out;
       } catch (e) {

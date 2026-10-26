@@ -245,3 +245,55 @@ CREATE TABLE IF NOT EXISTS auth_tickets_used (
   sig         TEXT PRIMARY KEY,
   expires_at  INTEGER NOT NULL
 );
+
+-- ─── Tasks (tasks.enabled; v1.13.0; worker/src/tasks.js) ─────────────────────
+--
+-- The work a question, an answer, a decision, a comment or a request creates,
+-- so the people who answered can see what is being done about it. In D1, never
+-- in git, like answers and comments: a task names people and carries working
+-- notes. Only a site that sets `tasks.enabled: true` writes these.
+--
+-- ⚠️ `number` is the T-number (T1, T2 ...). It is given out ONCE: a task is
+-- never deleted (Dropped is a status), so MAX(number) never goes down, and the
+-- INSERT computes MAX+1 in the same statement, with UNIQUE as the backstop.
+-- ⚠️ `assignee` for a person and `created_by_sub` / `by_sub` are email
+-- addresses. They are never sent to a reader; the name is.
+-- `doc` is where the task's source lives. It decides who may read the task:
+-- a task from a document a viewer cannot see is not theirs to see either.
+CREATE TABLE IF NOT EXISTS tasks (
+  id              TEXT PRIMARY KEY,
+  number          INTEGER NOT NULL UNIQUE,
+  title           TEXT NOT NULL,
+  body            TEXT NOT NULL DEFAULT '',
+  status          TEXT NOT NULL CHECK (status IN ('idea','open','in_progress','review','done','dropped')),
+  assignee_kind   TEXT CHECK (assignee_kind IN ('person','group')),
+  assignee        TEXT,
+  source_kind     TEXT NOT NULL CHECK (source_kind IN ('question','answer','decision','comment','request','external')),
+  source_ref      TEXT,
+  source_anchor   TEXT,
+  question_id     TEXT,
+  doc             TEXT,
+  links           TEXT NOT NULL DEFAULT '[]',
+  created_by_sub  TEXT NOT NULL,
+  created_by_name TEXT NOT NULL,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  closed_at       TEXT
+);
+CREATE INDEX IF NOT EXISTS tasks_by_question ON tasks(question_id);
+CREATE INDEX IF NOT EXISTS tasks_by_status ON tasks(status, updated_at);
+
+-- Every change to a task, and every comment on one, oldest first. Append-only.
+-- kind: created | status | assignee | edit | link | comment.
+CREATE TABLE IF NOT EXISTS task_events (
+  id         TEXT PRIMARY KEY,
+  task_id    TEXT NOT NULL,
+  at         TEXT NOT NULL,
+  by_sub     TEXT NOT NULL,
+  by_name    TEXT NOT NULL,
+  kind       TEXT NOT NULL,
+  from_value TEXT,
+  to_value   TEXT,
+  note       TEXT
+);
+CREATE INDEX IF NOT EXISTS task_events_by_task ON task_events(task_id, at);

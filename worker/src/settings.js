@@ -65,5 +65,47 @@ export function settingsProblems(config = {}) {
   if (hm != null && typeof hm !== 'boolean') out.push('project.header_menus is true or false');
   const groups = config.project?.groups;
   if (groups != null && (!Array.isArray(groups) || groups.some((g) => !g?.key))) out.push('project.groups is a list of {key, label}, in order (a map would lose its order)');
+  out.push(...tasksProblems(config, s));
+  return out;
+}
+
+// Tasks (v1.13.0; worker/src/tasks.js): the work a question, an answer, a
+// decision or a request creates, kept on the site in D1.
+//
+//   tasks.enabled     false (default) | true. Off, nothing is served and nothing
+//                     changes: no page, no route, no tool, no notification.
+//   tasks.link_kinds  how a task's {kind, ref} link renders, as
+//                     {kind: {label, url}}, where `url` carries `{ref}`, e.g.
+//                     hub: {label: Hub, url: "https://dash.example.org/tasks/{ref}"}.
+//                     The template knows no tracker; an instance names its own.
+//
+// ⚠️ Only the band layout serves the pages, so `enabled: true` needs
+// `site.layout: band`.
+export const LINK_KIND = /^[a-z][a-z0-9_-]{0,31}$/;
+
+export function tasksFrom(config = {}) {
+  const t = config.tasks || {};
+  const kinds = {};
+  for (const [k, v] of Object.entries(t.link_kinds || {})) {
+    if (LINK_KIND.test(k) && typeof v?.url === 'string') kinds[k] = { label: String(v.label || k), url: v.url };
+  }
+  return { enabled: t.enabled === true, link_kinds: kinds };
+}
+
+function tasksProblems(config, s) {
+  const t = config.tasks;
+  if (t == null) return [];
+  const out = [];
+  if (typeof t !== 'object' || Array.isArray(t)) return ['tasks is a map: {enabled, link_kinds}'];
+  if (t.enabled != null && typeof t.enabled !== 'boolean') out.push('tasks.enabled is true or false');
+  if (t.enabled === true && s.layout !== 'band') out.push('tasks.enabled: true needs site.layout: band (the Worker renders the task pages)');
+  const kinds = t.link_kinds;
+  if (kinds != null && (typeof kinds !== 'object' || Array.isArray(kinds))) out.push('tasks.link_kinds is a map: {kind: {label, url}}');
+  else for (const [k, v] of Object.entries(kinds || {})) {
+    if (!LINK_KIND.test(k)) out.push(`tasks.link_kinds key "${k}" is lowercase letters, digits, - and _`);
+    if (!/^https?:\/\/[^\s"'<>]+$/.test(String(v?.url || '')) || !String(v.url).includes('{ref}')) {
+      out.push(`tasks.link_kinds.${k}.url is an http(s) URL containing {ref}`);
+    }
+  }
   return out;
 }

@@ -12,6 +12,27 @@ import { viewEnv } from './band.js';
 import { flag } from './flag.js';
 import { canRead } from './identity.js';
 import { waitsOn } from './waits.js';
+import { tasksOn, listTasks, readTask, createTask, updateTask } from './tasks.js';
+
+// Tasks (tasks.enabled; worker/src/tasks.js), listed only where they are on.
+// The same functions the API and the pages call, so the same rules.
+const SOURCE = { type: 'object', description: 'Where the task came from: {kind: question|answer|decision|comment|request|external, ref: "Q4" | an answer or comment id | "doc#anchor" | a note or URL, anchor?: "#decision-anchor"}',
+  properties: { kind: { type: 'string' }, ref: { type: 'string' }, anchor: { type: 'string' } }, required: ['kind'] };
+const ASSIGNEE = { type: 'object', description: '{kind: "group", key: an audience or addressee} or {kind: "person", key: their email}',
+  properties: { kind: { type: 'string' }, key: { type: 'string' } } };
+const LINKS = { type: 'array', description: 'e.g. [{kind: "pr", ref: "owner/repo#12"}] (a pasted GitHub PR URL works too), or [{kind: "hub", ref: "<id>"}] where the site configures that kind',
+  items: { type: 'object', properties: { kind: { type: 'string' }, ref: { type: 'string' }, url: { type: 'string' } } } };
+const TASK_TOOLS = [
+  { name: 'list_tasks', description: 'The tasks on this site: the work questions, answers and decisions created. Filter by status (idea, open, in_progress, review, done, dropped), mine, a question ("Q4"), or a GitHub PR ("owner/repo#12" or its URL).',
+    inputSchema: { type: 'object', properties: { status: { type: 'string' }, mine: { type: 'boolean' }, question: { type: 'string' }, pr: { type: 'string' } } } },
+  { name: 'read_task', description: 'One task (T7 or 7): where it came from, who has it, its links, and its whole history and comments.',
+    inputSchema: { type: 'object', properties: { number: { type: ['number', 'string'] } }, required: ['number'] } },
+  { name: 'create_task', description: 'Make a task as the authenticated person (editors only). Say what you are creating first. Give its source, so the people who answered can see it.',
+    inputSchema: { type: 'object', properties: { title: { type: 'string' }, body: { type: 'string' }, status: { type: 'string' }, source: SOURCE, assignee: ASSIGNEE, links: LINKS }, required: ['title', 'source'] } },
+  { name: 'update_task', description: 'Change a task (editors only). Pass base_updated_at from read_task. Done or Dropped needs a note saying what was done or why. assignee: null clears it.',
+    inputSchema: { type: 'object', properties: { number: { type: ['number', 'string'] }, base_updated_at: { type: 'string' }, status: { type: 'string' }, note: { type: 'string' },
+      title: { type: 'string' }, body: { type: 'string' }, assignee: ASSIGNEE, add_links: LINKS, remove_links: LINKS }, required: ['number', 'base_updated_at'] } },
+];
 
 const TOOLS = [
   { name: 'list_documents', description: 'Every document in this project, with its sections.', inputSchema: { type: 'object', properties: {} } },
@@ -127,6 +148,12 @@ async function call(name, args, env, request, me, handlers) {
       return text(r);
     }
 
+    case 'list_tasks':
+    case 'read_task':
+    case 'create_task':
+    case 'update_task':
+      return taskTool(name, args, env, request, me);
+
     case 'list_activity':
       return text(m.docs.filter((d) => d.type === 'post' || d.type === 'decision')
         .map((d) => ({ type: d.type, date: d.date, title: d.title, slug: d.slug })));
@@ -134,6 +161,19 @@ async function call(name, args, env, request, me, handlers) {
     default:
       return text(`No tool named "${name}".`);
   }
+}
+
+async function taskTool(name, args, env, request, me) {
+  if (!tasksOn(env)) return text(`No tool named "${name}".`);
+  if (!me?.authenticated || me.disabled) return text('Not authenticated: tasks are for people on this project.');
+  if (name === 'list_tasks') return text(await listTasks(request, env, me, { status: args.status, mine: !!args.mine, question: args.question, pr: args.pr }));
+  if (name === 'read_task') {
+    const t = await readTask(request, env, me, args.number);
+    return text(t || `No such task T${String(args.number).replace(/^T/i, '')}. Use list_tasks.`);
+  }
+  const r = name === 'create_task' ? await createTask(args, request, env, me) : await updateTask(args.number, args, request, env, me);
+  if (!r.ok) return text(r.status === 403 ? `Not permitted: ${r.error}.` : `Not saved: ${r.error}`);
+  return text(name === 'create_task' ? `Created ${r.task.ref}: ${r.task.title}` : `${r.task.ref} is now ${r.task.status_label}.`);
 }
 
 export async function handleMcp(request, env, me, handlers) {
@@ -180,7 +220,7 @@ async function dispatch(request, env, me, handlers) {
   if (body.method === 'prompts/list') return reply({ prompts: [] });
   if (String(body.method || '').startsWith('notifications/')) return new Response(null, { status: 202 });
 
-  if (body.method === 'tools/list') return reply({ tools: TOOLS });
+  if (body.method === 'tools/list') return reply({ tools: tasksOn(env) ? [...TOOLS, ...TASK_TOOLS] : TOOLS });
 
   if (body.method === 'tools/call') {
     // A token that resolves to nobody must not read a private project.

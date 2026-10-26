@@ -151,3 +151,17 @@ main blockquote > :last-child { margin-bottom: 0; }
   .nav-group[open] { flex-basis: 100%; }
   .nav-menu { position: static; margin-top: .35rem; box-shadow: none; max-width: none; }
 }
+
+/* Tasks (tasks.enabled; worker/src/tasks.js). */
+.task-status { display: inline-block; font-family: var(--font-sans); font-size: .72rem; font-weight: 600;
+  padding: .05rem .45rem; border: 1px solid var(--border); border-radius: var(--radius); color: var(--muted-foreground); }
+.task-card[data-status="done"] .task-status, .task-card[data-status="dropped"] .task-status { opacity: .75; }
+.q-tasks, .q-actions { font-family: var(--font-sans); font-size: .82rem; margin: .4rem 0 0; color: var(--muted-foreground); }
+.task-ref { color: var(--muted-foreground); font-weight: 400; }
+.task-events { list-style: none; padding: 0; margin: .5rem 0 1rem; }
+.task-event { border-left: 2px solid var(--border); padding: .1rem 0 .1rem .8rem; margin: 0 0 .6rem; }
+.task-event[data-kind="comment"] { border-left-color: var(--primary); }
+.task-links { padding-left: 1.1rem; font-family: var(--font-sans); font-size: .88rem; }
+.task-form textarea, .task-comment textarea { width: 100%; font: inherit; padding: .45rem .6rem;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); color: var(--foreground); }
+.task-form .btn, .task-comment .btn { margin-top: .7rem; }
