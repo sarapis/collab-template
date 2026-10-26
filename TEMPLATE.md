@@ -246,8 +246,11 @@ npm ci && npm run build && npm test
 `RELEASES.md` says what each version changed and whether it changed
 `worker/schema.sql`.
 
-Read the template's release notes first: a version that changes
-`worker/schema.sql` needs the new statements applied to your D1 database.
+Read the template's release notes first. A version that changes
+`worker/schema.sql` needs the new statements applied to your D1 database. Since
+v1.13.2 the deploy workflow does that on every deploy, before the code goes
+out (the schema is re-runnable by rule). The CI token then needs D1 edit
+access; without it the deploy stops at that step and the live site is unchanged.
 
 ## Consuming only the compiler
 

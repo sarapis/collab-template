@@ -3,6 +3,26 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.13.2 — The deploy applies the D1 schema itself
+
+**`.github/workflows/deploy.yml` changes: it now runs `worker/schema.sql` against
+the site's D1 database (binding `DB`) before every deploy.** The CI token
+(`CLOUDFLARE_API_TOKEN`) therefore needs D1 edit access as well as Workers. If it
+lacks it, the deploy stops at that step and the live site is unchanged. No code,
+setting or compiled output changes.
+
+- **A schema change no longer waits on someone with a database login.** Every
+  version that changed `worker/schema.sql` (v1.1.0, v1.13.0) asked each instance
+  to apply it by hand, from a machine logged into the right Cloudflare account.
+  Turning tasks on before that was done would break every page that lists them.
+  Now the tables reach the database in the same run, and before the code that
+  reads them.
+- **The schema stays re-runnable by rule.** `test/schema-idempotent.test.js`
+  fails if any statement in `worker/schema.sql` is not
+  `CREATE … IF NOT EXISTS`, and if the deploy stops applying the schema before
+  the code. A change that needs more (a new column, a backfill) is a guarded
+  migration of its own, never a statement in this file.
+
 ## v1.13.1 — Saving a task never unassigns it by accident
 
 **Take this instead of v1.13.0 if you turn tasks on.** Only `worker/src/tasks.js`
