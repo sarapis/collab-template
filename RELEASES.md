@@ -3,6 +3,17 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.13.1 — Saving a task never unassigns it by accident
+
+**Take this instead of v1.13.0 if you turn tasks on.** Only `worker/src/tasks.js`
+changes, plus a test. No setting, schema or compiled output changes.
+
+- **A note-only save could unassign a task.** The task form's assignee menu
+  listed only people and groups that can be chosen today, so a task assigned to
+  someone since disabled (or a group since removed from the settings) rendered
+  with nothing selected, and the browser submitted "Nobody yet". The current
+  assignee is now always an option, marked as no longer active.
+
 ## v1.13.0 — Tasks: the work a question creates, on the site
 
 **`worker/schema.sql` changes: it adds `tasks` and `task_events`** (both

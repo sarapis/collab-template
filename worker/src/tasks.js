@@ -570,9 +570,21 @@ ${g.tasks.map(taskRow).join('\n')}
 
 function assigneeOptions(selected, groups, people) {
   const opt = (value, label) => `<option value="${esc(value)}"${value === selected ? ' selected' : ''}>${esc(label)}</option>`;
-  return [opt('', 'Nobody yet'),
-    ...groups.map((g) => opt(`group:${g.id}`, `${g.name} (group)`)),
-    ...people.filter((p) => !p.disabled).map((p) => opt(`person:${p.email}`, p.name))].join('');
+  const offered = [
+    ...groups.map((g) => [`group:${g.id}`, `${g.name} (group)`]),
+    ...people.filter((p) => !p.disabled).map((p) => [`person:${p.email}`, p.name]),
+  ];
+  // ⚠️ The CURRENT assignee is always an option, even when it could not be chosen
+  // today (a person since disabled, a group since removed from the settings).
+  // Without it the browser submits the first option, "Nobody yet", and any save of
+  // this form, even a note, silently took the task off them.
+  if (selected && !offered.some(([v]) => v === selected)) {
+    const [kind, ...rest] = selected.split(':');
+    const key = rest.join(':');
+    const name = kind === 'person' ? (people.find((p) => p.email === key)?.name || 'someone on the roster') : key;
+    offered.unshift([selected, `${name} (${kind === 'person' ? 'no longer active' : 'no longer a group'})`]);
+  }
+  return [opt('', 'Nobody yet'), ...offered.map(([v, l]) => opt(v, l))].join('');
 }
 
 // The form value of a task's assignee, read for an EDITOR's form only: a
