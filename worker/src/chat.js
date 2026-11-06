@@ -22,6 +22,18 @@ import { isEditor } from './identity.js';
 // starts returning 404 for the model, that is what happened -- set CHAT_MODEL
 // to a name the account can see rather than editing this file.
 const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+
+// TWO PROVIDERS, and the model name says which (v1.14.0):
+//   gemini-3.5-flash-lite          Google's Gemini API, with GEMINI_API_KEY
+//   google/gemini-3.5-flash-lite   OpenRouter, with OPENROUTER_API_KEY
+// An OpenRouter model is always `vendor/model` and a Gemini model never has a
+// slash, so the name alone is unambiguous. ⚠️ Deliberately no CHAT_PROVIDER
+// setting: two knobs that must agree are two knobs that can disagree, and
+// "openrouter with a bare Gemini name" is a 400 nobody needed to be able to set.
+export const providerFor = (model) => (String(model).includes('/') ? 'openrouter' : 'gemini');
+const KEY_FOR = { gemini: 'GEMINI_API_KEY', openrouter: 'OPENROUTER_API_KEY' };
+const MAX_OUTPUT_TOKENS = 1024;
+const TEMPERATURE = 0.2;
 const MAX_CONTEXT = 120_000; // characters, not tokens: a coarse guard, not a budget
 
 const json = (data, status = 200, extra = {}) =>
@@ -131,8 +143,10 @@ export async function handleChat(request, env, me) {
   // anonymous caller before this runs, whatever CHAT_PUBLIC says.)
   const open = flag(env, 'CHAT_PUBLIC');
   if (!me.can_write && !open) return json({ error: 'not permitted' }, 403);
-  const geminiKey = await secretValue(env, 'GEMINI_API_KEY');
-  if (!geminiKey) return json({ error: 'The assistant has no API key configured for this project.' }, 503);
+  const model = String(env.CHAT_MODEL || DEFAULT_MODEL).trim();
+  const provider = providerFor(model);
+  const apiKey = await secretValue(env, KEY_FOR[provider]);
+  if (!apiKey) return json({ error: 'The assistant has no API key configured for this project.' }, 503);
 
   const stamp = new Date().toISOString();
 
@@ -185,50 +199,28 @@ export async function handleChat(request, env, me) {
     'SELECT user_message, assistant_message FROM chat_turns WHERE session_id = ? AND author_sub = ? ORDER BY created_at LIMIT 20'
   ).bind(sessionId, author.sub).all();
 
-  // Gemini calls the assistant turn "model", not "assistant".
-  const contents = [];
+  // The conversation in a neutral shape; each provider translates it.
+  const turns = [];
   for (const t of prior || []) {
-    contents.push({ role: 'user', parts: [{ text: t.user_message }] });
-    if (t.assistant_message) contents.push({ role: 'model', parts: [{ text: t.assistant_message }] });
+    turns.push({ role: 'user', text: t.user_message });
+    if (t.assistant_message) turns.push({ role: 'assistant', text: t.assistant_message });
   }
-  contents.push({ role: 'user', parts: [{ text: message }] });
+  turns.push({ role: 'user', text: message });
 
-  const model = String(env.CHAT_MODEL || DEFAULT_MODEL).trim();
   const started = Date.now();
+  const call = provider === 'openrouter' ? askOpenRouter : askGemini;
   let answer = null, error = null;
   try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST',
-      headers: {
-        'x-goog-api-key': String(geminiKey).trim(),
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: `${SYSTEM}\n\n---\n\n${context}` }] },
-        contents,
-        generationConfig: { maxOutputTokens: 1024, temperature: 0.2 },
-      }),
-    });
-    if (!r.ok) {
-      error = `${r.status}: ${(await r.text()).slice(0, 300)}`;
-    } else {
-      const data = await r.json();
-      const candidate = (data.candidates || [])[0];
-      answer = ((candidate?.content?.parts) || []).map((p) => p.text).filter(Boolean).join('\n').trim();
-      // ⚠️ An empty answer with no HTTP error is a real Gemini outcome -- a
-      // safety block or a hit token ceiling returns 200 with no text and a
-      // finishReason. Storing that as a successful empty answer would make the
-      // transcript claim the assistant said nothing when it was stopped.
-      if (!answer) {
-        // Null, not an empty string: the row must not read as "the assistant
-        // replied with nothing", which is a different event from being stopped.
-        answer = null;
-        error = `empty response, finishReason=${candidate?.finishReason || 'unknown'}`;
-      }
-    }
+    ({ answer, error } = await call({
+      key: String(apiKey).trim(), model, system: `${SYSTEM}\n\n---\n\n${context}`, turns, request,
+    }));
   } catch (e) {
     error = e.message;
   }
+  // ⚠️ Null, not an empty string, whichever provider: the row must not read as
+  // "the assistant replied with nothing", which is a different event from being
+  // stopped.
+  if (!answer) answer = null;
 
   // ⚠️ Stored whether it succeeded or not, and with the person on it. GMTools'
   // logger records a session and no user, so its log cannot answer the first
@@ -250,6 +242,60 @@ export async function handleChat(request, env, me) {
     return json({ error: 'The assistant could not answer just now. The question was recorded.', session_id: sessionId }, 502);
   }
   return json({ session_id: sessionId, answer, ms: Date.now() - started });
+}
+
+// --- the providers -----------------------------------------------------------
+//
+// Each returns { answer, error }: an answer with text, or an error saying why
+// there is none. ⚠️ An empty answer with no HTTP error is a real outcome on
+// BOTH -- a safety block or a hit token ceiling returns 200 with no text and a
+// finish reason. Storing that as a successful empty answer would make the
+// transcript claim the assistant said nothing when it was stopped.
+
+async function askGemini({ key, model, system, turns }) {
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST',
+    headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: system }] },
+      // Gemini calls the assistant turn "model", not "assistant".
+      contents: turns.map((t) => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] })),
+      generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS, temperature: TEMPERATURE },
+    }),
+  });
+  if (!r.ok) return { error: `${r.status}: ${(await r.text()).slice(0, 300)}` };
+  const data = await r.json();
+  const candidate = (data.candidates || [])[0];
+  const answer = ((candidate?.content?.parts) || []).map((p) => p.text).filter(Boolean).join('\n').trim();
+  return answer ? { answer } : { error: `empty response, finishReason=${candidate?.finishReason || 'unknown'}` };
+}
+
+async function askOpenRouter({ key, model, system, turns, request }) {
+  const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${key}`,
+      'content-type': 'application/json',
+      // Optional attribution OpenRouter shows on its dashboard: which site spent it.
+      'http-referer': new URL(request.url).origin,
+      'x-title': 'Collaboration site assistant',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'system', content: system }, ...turns.map((t) => ({ role: t.role, content: t.text }))],
+      max_tokens: MAX_OUTPUT_TOKENS,
+      temperature: TEMPERATURE,
+    }),
+  });
+  if (!r.ok) return { error: `${r.status}: ${(await r.text()).slice(0, 300)}` };
+  const data = await r.json();
+  // ⚠️ OpenRouter can answer 200 with an `error` body when the upstream
+  // provider fails mid-request. That is a failure, not an empty answer.
+  if (data.error) return { error: `openrouter: ${String(data.error.message || JSON.stringify(data.error)).slice(0, 300)}` };
+  const choice = (data.choices || [])[0];
+  const content = choice?.message?.content;
+  const answer = (Array.isArray(content) ? content.map((p) => p.text).filter(Boolean).join('\n') : String(content || '')).trim();
+  return answer ? { answer } : { error: `empty response, finishReason=${choice?.finish_reason || 'unknown'}` };
 }
 
 export async function listSessions(env, me) {

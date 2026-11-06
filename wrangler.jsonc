@@ -39,6 +39,9 @@
     "PUBLIC_READ": "false",
 
     "CHAT_ENABLED": "true",
+    // A bare name (gemini-…) calls Google with GEMINI_API_KEY; vendor/model
+    // (google/gemini-3.5-flash-lite, anthropic/…) calls OpenRouter with
+    // OPENROUTER_API_KEY.
     "CHAT_MODEL": "gemini-3.5-flash-lite",
     "CHAT_RETENTION_DAYS": "90",
 
@@ -57,7 +60,8 @@
   //   SESSION_SECRET  signs the session cookie
   //   AGENT_TOKENS    {"they@example.org":"sha256:<64 hex>"}
   //   RESEND_API_KEY  sends the mail
-  //   GEMINI_API_KEY  the assistant
+  //   GEMINI_API_KEY  the assistant, for a Gemini CHAT_MODEL
+  //   OPENROUTER_API_KEY  the assistant, for a vendor/model CHAT_MODEL
   //   CMS_PASS_SECRET sign in with a CMS on another domain (with the var
   //                   CMS_URL); 32+ characters, the value the CMS holds
   //   EXPORT_TOKEN    content.source: rows only. 32+ characters; the nightly
