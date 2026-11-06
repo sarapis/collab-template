@@ -3,6 +3,32 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.14.0 — The assistant can run through OpenRouter
+
+**Only `worker/src/chat.js` and `worker/src/secrets.js` change, plus tests,
+comments in `wrangler.jsonc` and these notes.** No schema change. A site that
+keeps a Gemini `CHAT_MODEL` behaves exactly as before.
+
+- **The model name picks the provider.** A bare name (`gemini-3.5-flash-lite`)
+  calls Google's Gemini API with `GEMINI_API_KEY`, as before. A `vendor/model`
+  name (`google/gemini-3.5-flash-lite`, `anthropic/…`, `openrouter/auto`) calls
+  OpenRouter's chat completions with **`OPENROUTER_API_KEY`**.
+  - ⚠️ Deliberately no `CHAT_PROVIDER` setting: OpenRouter names always carry a
+    slash and Gemini's never do, so a second knob could only disagree with the
+    first.
+  - Each provider is sent only its own key; with the other key alone the
+    assistant says it has no key and calls nobody.
+- **`OPENROUTER_API_KEY` is a manageable secret**, masked, so an admin can set
+  it from the site's Settings (with `SETTINGS_KEY`) instead of a terminal.
+- **Failures are rows, on both.** OpenRouter's 200-with-an-`error` (the upstream
+  provider failed mid-request) and an empty answer with a `finish_reason` are
+  recorded as failures, never as the assistant saying nothing.
+
+To switch an instance: set `OPENROUTER_API_KEY`, set `CHAT_MODEL` in
+`wrangler.jsonc` to an OpenRouter model id, deploy.
+
+Tests: 507 → 513 (`worker/test/chat.test.js`, `worker/test/admin.test.js`).
+
 ## v1.13.4 — A Claude session keeps its task up to date
 
 **Only `worker/src/tasks.js`, `worker/src/mcp.js` and `worker/src/index.js`

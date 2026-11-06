@@ -274,7 +274,7 @@ test('public is opt-in, so a forgotten setting fails closed', async () => {
   // than it needed to be, never one that shows a key.
   const { MANAGEABLE } = await import('../src/secrets.js');
   const masked = Object.entries(MANAGEABLE).filter(([, m]) => !m.public).map(([n]) => n);
-  for (const n of ['GEMINI_API_KEY', 'RESEND_API_KEY', 'AGENT_TOKENS', 'GOOGLE_CLIENT_SECRET']) {
+  for (const n of ['GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'RESEND_API_KEY', 'AGENT_TOKENS', 'GOOGLE_CLIENT_SECRET']) {
     assert.ok(masked.includes(n), `${n} is not masked`);
   }
   const store = db(PEOPLE);

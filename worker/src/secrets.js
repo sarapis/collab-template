@@ -31,7 +31,8 @@ const json = (data, status = 200) =>
 // could set PUBLIC_READ, or ROOT_ADMIN, and quietly take the site over or lock
 // its owner out through a form meant for an API key.
 export const MANAGEABLE = {
-  GEMINI_API_KEY: { describes: 'The assistant. Without it the assistant says it has no key.' },
+  GEMINI_API_KEY: { describes: 'The assistant, when CHAT_MODEL is a Gemini name (gemini-…).' },
+  OPENROUTER_API_KEY: { describes: 'The assistant, when CHAT_MODEL is an OpenRouter name (vendor/model).' },
   RESEND_API_KEY: { describes: 'Sends sign-in links. Without it nobody new can sign in.' },
   AGENT_TOKENS: { describes: 'Bearer tokens for Claude Code, as {"they@example.org":"sha256:..."}.' },
   GOOGLE_CLIENT_SECRET: { describes: 'Google sign-in. Set this and the ID, and the button appears.' },

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import worker from '../src/index.js';
-import { enforceRetention } from '../src/chat.js';
+import { enforceRetention, providerFor } from '../src/chat.js';
 import { CLASSIC } from './classic.js';
 
 const MANIFEST = fs.readFileSync('build/manifest.json', 'utf8');
@@ -404,4 +404,103 @@ test('retention sweeps spent counters as well as old turns', async () => {
   const r = await enforceRetention({ ...env(store), CHAT_RETENTION_DAYS: '90' });
   assert.equal(r.expired, 1, 'the spent counter should be gone');
   assert.ok(store.rows.chat_rate.has('site:2999-01-01'), 'a live counter must survive');
+});
+
+// --- OpenRouter (v1.14.0) --------------------------------------------------
+//
+// The model name picks the provider: vendor/model is OpenRouter, a bare name is
+// Gemini. These pin that the two never cross: an OpenRouter model never sends
+// the Gemini key to OpenRouter, nor the other way round.
+
+const OR = 'openrouter.ai/api/v1/chat/completions';
+const orEnv = (DB, extra = {}) => ({ ...env(DB), GEMINI_API_KEY: undefined, OPENROUTER_API_KEY: 'or-test', CHAT_MODEL: 'google/gemini-3.5-flash-lite', ...extra });
+
+function stubOpenRouter(reply) {
+  const seen = { n: 0, gemini: 0 };
+  const real = globalThis.fetch;
+  globalThis.fetch = async (u, init) => {
+    if (String(u).includes('generativelanguage.googleapis.com')) { seen.gemini += 1; return new Response('{}', { status: 200 }); }
+    if (String(u).includes(OR)) {
+      seen.n += 1; seen.headers = init.headers; seen.body = JSON.parse(init.body);
+      return typeof reply === 'function' ? reply() : new Response(JSON.stringify(reply), { status: 200 });
+    }
+    return real(u, init);
+  };
+  return { seen, restore: () => { globalThis.fetch = real; } };
+}
+
+test('the model name picks the provider', () => {
+  assert.equal(providerFor('gemini-3.5-flash-lite'), 'gemini');
+  assert.equal(providerFor('google/gemini-3.5-flash-lite'), 'openrouter');
+  assert.equal(providerFor('anthropic/claude-haiku-5-5'), 'openrouter');
+  assert.equal(providerFor('openrouter/auto'), 'openrouter');
+});
+
+test('a vendor/model name answers through OpenRouter with its own key', async () => {
+  const { seen, restore } = stubOpenRouter({ choices: [{ message: { role: 'assistant', content: 'From OpenRouter.' }, finish_reason: 'stop' }] });
+  try {
+    const e = orEnv(db());
+    const r = await worker.fetch(ask('devin@example.org', 'what is this?'), e).then((x) => x.json());
+    assert.equal(r.answer, 'From OpenRouter.');
+    assert.equal(seen.n, 1);
+    assert.equal(seen.gemini, 0, 'Gemini must not be called for an OpenRouter model');
+    assert.equal(seen.headers.authorization, 'Bearer or-test');
+    assert.equal(seen.body.model, 'google/gemini-3.5-flash-lite');
+    assert.equal(seen.body.messages[0].role, 'system');
+    assert.match(seen.body.messages[0].content, /cannot change anything/);
+    assert.match(seen.body.messages[0].content, /# The question catalog/);
+    assert.deepEqual(seen.body.messages.at(-1), { role: 'user', content: 'what is this?' });
+    assert.equal(e.DB.rows.chat_turns[0].model, 'google/gemini-3.5-flash-lite');
+    assert.equal(e.DB.rows.chat_turns[0].assistant_message, 'From OpenRouter.');
+  } finally { restore(); }
+});
+
+test('an earlier turn reaches OpenRouter as an assistant message', async () => {
+  const { seen, restore } = stubOpenRouter({ choices: [{ message: { content: 'second' } }] });
+  try {
+    const e = orEnv(db());
+    await worker.fetch(ask('devin@example.org', 'first', 's-or'), e);
+    await worker.fetch(ask('devin@example.org', 'again', 's-or'), e);
+    assert.deepEqual(seen.body.messages.slice(1).map((m) => m.role), ['user', 'assistant', 'user']);
+    assert.equal(seen.body.messages[2].content, 'second');
+  } finally { restore(); }
+});
+
+test('an OpenRouter model with only a Gemini key says it has no key, and calls nobody', async () => {
+  const { seen, restore } = stubOpenRouter({});
+  try {
+    const e = orEnv(db(), { OPENROUTER_API_KEY: undefined, GEMINI_API_KEY: 'g-test' });
+    const r = await worker.fetch(ask('devin@example.org', 'hi'), e);
+    assert.equal(r.status, 503);
+    assert.match((await r.json()).error, /no API key/);
+    assert.equal(seen.n + seen.gemini, 0);
+  } finally { restore(); }
+});
+
+test('a Gemini model never sends anything to OpenRouter', async () => {
+  const restore = stubModel('from Gemini');
+  try {
+    const r = await worker.fetch(ask('devin@example.org', 'hi'), { ...env(db()), OPENROUTER_API_KEY: 'or-test' }).then((x) => x.json());
+    assert.equal(r.answer, 'from Gemini');
+    assert.equal(calls.n, 1);
+  } finally { restore(); }
+});
+
+test('OpenRouter failures are recorded as failures', async () => {
+  const cases = [
+    [() => new Response('{"error":{"message":"no credits"}}', { status: 402 }), /^402/],
+    // ⚠️ 200 with an error body: the upstream provider failed mid-request.
+    [() => new Response(JSON.stringify({ error: { code: 502, message: 'upstream down' } }), { status: 200 }), /openrouter: upstream down/],
+    [() => new Response(JSON.stringify({ choices: [{ message: { content: '' }, finish_reason: 'content_filter' }] }), { status: 200 }), /finishReason=content_filter/],
+  ];
+  for (const [reply, pattern] of cases) {
+    const { restore } = stubOpenRouter(reply);
+    try {
+      const e = orEnv(db());
+      const r = await worker.fetch(ask('devin@example.org', 'hi'), e);
+      assert.equal(r.status, 502);
+      assert.match(e.DB.rows.chat_turns[0].error, pattern);
+      assert.equal(e.DB.rows.chat_turns[0].assistant_message, null);
+    } finally { restore(); }
+  }
 });
