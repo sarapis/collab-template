@@ -17,6 +17,7 @@ import { canRead, isEditor } from './identity.js';
 import { flag } from './flag.js';
 import * as R from './render.js';
 import { waitsOnAny } from './waits.js';
+import { listPeople } from './people.js';
 import { tasksOn, taskPages, taskActivity, tasksByQuestion, questionTasksLine, makeTaskHref } from './tasks.js';
 
 export const hostOf = (env) => env.COLLAB_HOST || HOST;
@@ -90,6 +91,41 @@ async function waitingFor(env, m, me) {
     .bind(me.sub).all().catch(() => ({ results: [] }));
   const opened = (q) => m.asked_rounds?.[q.asked]?.opened || '1970-01-01T00:00:00.000Z';
   return mine.filter((q) => !(results || []).some((r) => r.question_id === q.id && r.latest >= opened(q))).length;
+}
+
+// Who each open question is still waiting on, for the Questions page's "Waiting on"
+// menu. The same rule as the badge (waitingFor): addressed to one of the person's
+// groups, and no answer from them since the question's round opened.
+//
+// ⚠️ Only names leave the server. A person is keyed by a hash of their address, never
+// the address, and the whole thing is for signed-in viewers only: on a public-read
+// site the Questions page is public, and the roster's names are not (tasks.js).
+async function personKey(email) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(email).toLowerCase()));
+  return 'p' + [...new Uint8Array(buf)].slice(0, 5).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function waitingOn(env, m, me) {
+  if (!me?.authenticated) return null;
+  const people = (await listPeople(env).catch(() => []))
+    .filter((p) => !p.disabled && !p.implicit && (p.audiences || []).length);
+  if (!people.length) return null;
+  const { results } = await env.DB.prepare(
+    'SELECT question_id, author_sub, MAX(created_at) AS latest FROM answers GROUP BY question_id, author_sub')
+    .all().catch(() => ({ results: [] }));
+  const latest = new Map((results || []).map((r) => [`${r.question_id}\u0000${String(r.author_sub).toLowerCase()}`, r.latest]));
+  const opened = (q) => m.asked_rounds?.[q.asked]?.opened || '1970-01-01T00:00:00.000Z';
+  const keyed = await Promise.all(people.map(async (p) => ({ p, key: await personKey(p.email) })));
+  const byQuestion = new Map();
+  const counts = new Map();
+  for (const q of m.questions) {
+    if (q.resolved || q.hidden) continue;
+    const who = keyed.filter(({ p }) => waitsOnAny(q, p.audiences)
+      && !((latest.get(`${q.id}\u0000${String(p.email).toLowerCase()}`) || '') >= opened(q)));
+    byQuestion.set(q.id, who.map((w) => w.key));
+    for (const w of who) counts.set(w.key, (counts.get(w.key) || 0) + 1);
+  }
+  return { people: keyed.map(({ p, key }) => ({ key, name: p.name, count: counts.get(key) || 0 })), byQuestion };
 }
 
 export async function versionsList(env, settings, version, limit = 20) {
@@ -193,7 +229,7 @@ export async function bandPage(request, env, me, url) {
   if (p === '/') return render(view.manifest.project?.name || 'Home', R.homePage(view, { waiting: await waitingFor(env, view.manifest, me) }));
   if (p === '/about/') return render('About', R.aboutPage(view), { doc: 'start' });
   if (p === '/get-involved/') return render('Get involved', R.getInvolvedPage(view, { origin: url.origin, publicRead: flag(env, 'PUBLIC_READ') }));
-  if (p === '/questions/') return render('Questions', R.questionsPage(view, await taskExtras(request, env, me)));
+  if (p === '/questions/') return render('Questions', R.questionsPage(view, { ...(await taskExtras(request, env, me)), waiting: await waitingOn(env, view.manifest, me) }));
   if (p === '/activity/') return render('Activity', R.activityPage(view, await activityLive(env, host.settings, version, view, me, request), url.searchParams.get('type')));
   if (pages.includes(p + '/')) return redirect(p + '/' + url.search);
 

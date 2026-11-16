@@ -11,7 +11,7 @@ import worker from '../src/index.js';
 import { handleMcp } from '../src/mcp.js';
 import { MCP_HANDLERS } from '../src/index.js';
 import * as d from '../../test/detectors.js';
-import { bandEnv, sampleVersion, get, read, ADMIN, READER, host } from './fixture.js';
+import { bandEnv, sampleVersion, get, read, ADMIN, EDITOR, READER, host } from './fixture.js';
 
 const fetch = (env, p, who) => worker.fetch(get(p, who), env);
 const html = async (env, p, who) => { const r = await fetch(env, p, who); return { r, body: await r.text() }; };
@@ -430,4 +430,54 @@ test('header menus are off unless asked for: the rail keeps its documents list',
   const { body } = await html(await bandEnv(), '/', ADMIN);
   assert.doesNotMatch(body, /nav-group/);
   assert.match(body, /aria-label="Documents"/);
+});
+
+// --- Questions: "Waiting on" a person -----------------------------------------
+
+const personOptions = (body) => [...body.matchAll(/<option value="(p[0-9a-f]{10})">([^<]+) \((\d+)\)<\/option>/g)]
+  .map((m) => ({ key: m[1], name: m[2], count: Number(m[3]) }));
+const waitingPeople = (body, id) => {
+  const card = body.match(new RegExp(`<article[^>]*data-question="${id}"[^>]*>`))[0];
+  const m = card.match(/data-waiting-people="([^"]*)"/);
+  return m ? m[1].split(' ').filter(Boolean) : null;
+};
+const answer = (env, qid, who, at) => env.DB.prepare(
+  'INSERT INTO answers (id, question_id, author_sub, author_name, body, created_at, revision_count) VALUES (?, ?, ?, ?, ?, ?, 0)')
+  .bind(crypto.randomUUID(), qid, who, who.split('@')[0], 'An answer.', at).run();
+
+test('Questions: the Waiting on menu names each person with how many questions wait on them', async () => {
+  const { body } = await html(await bandEnv(), '/questions/', ADMIN);
+  const people = personOptions(body);
+  // Assert the menu is THERE before reading anything off it: an absent menu would
+  // make every per-person check below pass on nothing.
+  assert.match(body, /<select id="q-person">/);
+  assert.deepEqual(people.map((p) => [p.name, p.count]).sort(), [['admin', 1], ['editor', 1], ['reader', 1]]);
+  const key = Object.fromEntries(people.map((p) => [p.name, p.key]));
+  assert.deepEqual(waitingPeople(body, 'sample:first-audience').sort(), [key.admin, key.editor].sort());
+  assert.deepEqual(waitingPeople(body, 'sample:success-measure'), [key.reader]);
+  // Only names leave the server: no address, in the menu or anywhere on the page.
+  assert.doesNotMatch(body, /@example\.org/);
+});
+
+test('Questions: answering takes you off a question; an answer to an earlier round does not', async () => {
+  const env = await bandEnv();
+  await answer(env, 'sample:first-audience', ADMIN, '2026-10-05T00:00:00.000Z');
+  // The editor answered before the round opened (2026-10-01): that answered an
+  // earlier wording, so the question still waits on them, as the badge says.
+  await answer(env, 'sample:first-audience', EDITOR, '2026-09-01T00:00:00.000Z');
+  const { body } = await html(env, '/questions/', ADMIN);
+  const people = Object.fromEntries(personOptions(body).map((p) => [p.name, p]));
+  assert.equal(people.admin.count, 0);
+  assert.equal(people.editor.count, 1);
+  assert.deepEqual(waitingPeople(body, 'sample:first-audience'), [people.editor.key]);
+});
+
+test('Questions: a stranger on a public site sees no roster names', async () => {
+  const env = await bandEnv({ publicRead: true });
+  const { r, body } = await html(env, '/questions/', null);
+  assert.equal(r.status, 200);
+  assert.match(body, /data-question="sample:first-audience"/, 'the page must be the worksheet, or this proves nothing');
+  assert.doesNotMatch(body, /id="q-person"/);
+  assert.doesNotMatch(body, /data-waiting-people=/);
+  assert.match(body, /id="q-sort"/);
 });
