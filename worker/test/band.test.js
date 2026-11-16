@@ -481,3 +481,14 @@ test('Questions: a stranger on a public site sees no roster names', async () => 
   assert.doesNotMatch(body, /data-waiting-people=/);
   assert.match(body, /id="q-sort"/);
 });
+
+test('MCP: an answer posted as asking back is stored and reported as such', async () => {
+  // Real SQLite (fixture.js), so the table, the ON CONFLICT and the read all run.
+  const env = await bandEnv();
+  const me = { authenticated: true, can_write: true, sub: ADMIN, name: 'admin', role: 'admin', audiences: ['team'] };
+  const posted = await mcpCall(env, me, 'post_answer', { slug: 'first-audience', body: 'Which team do you mean?', asks_back: true });
+  assert.match(JSON.stringify(posted), /marked as asking back/);
+  const read = JSON.stringify(await mcpCall(env, me, 'read_question', { slug: 'first-audience' }));
+  assert.match(read, /Which team do you mean\?/);
+  assert.match(read, /asks_back[\\":\s]+true/);
+});

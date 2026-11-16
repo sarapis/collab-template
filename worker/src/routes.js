@@ -14,6 +14,7 @@ export const ROUTES = [
   { method: 'GET',   path: '/api/answers' },
   { method: 'POST',  path: '/api/answers' },
   { method: 'PATCH', path: '/api/answers/:id' },
+  { method: 'PUT',   path: '/api/answers/:id/asks-back' },
   { method: 'GET',   path: '/api/comments' },
   { method: 'POST',  path: '/api/comments' },
   { method: 'GET',   path: '/api/notifications' },

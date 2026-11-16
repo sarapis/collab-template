@@ -3,6 +3,44 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.16.0 — An answer can ask a question back
+
+**`worker/schema.sql` changes: one new table, `answer_asks_back`.** Since v1.13.2
+the deploy applies the schema before the code goes out, so taking this version
+needs nothing by hand. Also changed: `worker/src/asks-back.js` (new),
+`worker/src/index.js`, `worker/src/mcp.js`, `worker/src/routes.js`,
+`worker/src/render.js`, `widget/collab.js`, `site/questions.njk`,
+`site/site.css`, plus tests. The compiler and `conformance/` are unchanged.
+
+"Not sure what this means" and "what is the key used for?" were counted as
+answers. Questions that had only been asked back looked answered, sat in "ready
+to fold", and left everyone's lists. Now an answer can be marked as asking a
+question back:
+
+- **It stays on the record**, labelled "asks back", and is edited like any
+  answer.
+- **It does not settle its question.** A question's state comes from its
+  answers in the current round: none is unanswered; the newest asking back
+  **needs a reply**; otherwise answered. One rule, in `asks-back.js`, for the
+  notifications, the MCP tools and (mirrored) the widget's filters.
+- **Whoever asked back has done their part:** the question stops waiting for
+  them, as any answer of theirs does.
+- **Editors are told:** a new notification, "N questions asked back, needing a
+  reply", links to a new **Needs a reply** filter (`?show=asks`).
+- **Who sets it:** the person posting (a checkbox on the answer form;
+  `asks_back: true` on `POST /api/answers`; `asks_back` on the MCP
+  `post_answer`), and afterwards its author or any editor, with a button on the
+  answer or `PUT /api/answers/:id/asks-back` `{asks_back: true|false}`. Editors
+  may mark other people's answers: it changes what the worksheet counts, never
+  the words.
+- Answers from the API and the MCP tools now carry `asks_back`, and the API's
+  carry `can_flag` (author or editor).
+
+Tests: 517 → 522 (`worker/test/api.test.js`: the flag does not answer, the
+asker stops waiting, a real answer afterwards answers it, and who may set it,
+the first and last proven red first; `worker/test/band.test.js`: posted over
+MCP and read back from a real SQLite database).
+
 ## v1.15.0 — Questions: Open and Resolved, "Waiting on" a person, newest answers first
 
 **`worker/src/band.js`, `worker/src/render.js`, `widget/collab.js`,
