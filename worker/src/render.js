@@ -373,7 +373,7 @@ export function questionsPage(version, extra = {}) {
     const see = (q.see || []).length ? `<p class="q-see">Context: ${q.see.map((r) => (r.kind === 'section'
       ? `<a href="/${esc(r.doc)}/#${esc(r.section)}" data-see-section="${esc(r.doc)}#${esc(r.section)}">${esc(r.title || r.section)}</a>`
       : `<a href="${esc(r.url)}" rel="noreferrer" target="_blank">${esc(r.label)} ↗</a>`)).join(' · ')}</p>` : '';
-    return `<article class="card ${q.resolved ? 'resolved' : 'open'}" id="q${q.number}" data-question="${esc(q.id)}" data-audience="${esc(q.audience)}" data-waits-on="${esc(waitsOn(q).join(' '))}" data-resolved="${q.resolved ? 'true' : 'false'}" data-asked="${esc(q.asked)}">
+    return `<article class="card ${q.resolved ? 'resolved' : 'open'}" id="q${q.number}" data-question="${esc(q.id)}" data-audience="${esc(q.audience)}" data-waits-on="${esc(waitsOn(q).join(' '))}" data-resolved="${q.resolved ? 'true' : 'false'}" data-asked="${esc(q.asked)}"${extra.waiting ? ` data-waiting-people="${esc((extra.waiting.byQuestion.get(q.id) || []).join(' '))}"` : ''}>
 <header class="q-head"><a class="q-num" href="/${esc(q.doc)}/${q.margin ? `#q${q.number}` : ''}">Q${q.number}</a> <span class="q-audience">${esc(q.audience)}</span>${q.to?.length ? ` <span class="q-to">to ${esc(q.to.map((g) => groupName(m, g)).join(', '))}</span>` : ''}${m.asked_rounds?.[q.asked]?.new ? '<span class="q-audience">· new this round</span>' : ''}</header>
 <div class="q-body">${q.body}</div>
 ${q.why ? `<div class="q-why"><strong>Why asked:</strong> ${q.why}</div>` : ''}${see}
@@ -385,11 +385,23 @@ ${q.resolved ? `<p class="q-resolved-note">resolved · see <a href="/${esc(q.doc
 <p class="counts" id="q-counts">${m.counts.questions} total · ${m.counts.open} open · ${m.counts.resolved} resolved</p>
 <p class="counts">Every count on this page is computed from the live version. None is typed.</p>
 <nav class="filters" id="q-filters" aria-label="Filter questions">
-  <button class="filter" type="button" data-show="all" aria-pressed="true">All</button>
+  <button class="filter" type="button" data-show="open" aria-pressed="true">Open</button>
+  <button class="filter" type="button" data-show="resolved">Resolved</button>
+  <button class="filter" type="button" data-show="all">All</button>
   <button class="filter" type="button" data-show="waiting">Waiting for you</button>
   <button class="filter" type="button" data-show="unanswered">Unanswered</button>
   <button class="filter" type="button" data-show="answered">Answered, not folded in</button>
 </nav>
+<div class="filters q-controls">
+${extra.waiting ? `  <label class="q-control">Waiting on <select id="q-person">
+    <option value="">anyone</option>
+${extra.waiting.people.map((p) => `    <option value="${esc(p.key)}">${esc(p.name)} (${p.count})</option>`).join('\n')}
+  </select></label>
+` : ''}  <label class="q-control">Sort <select id="q-sort">
+    <option value="">by number, in topics</option>
+    <option value="recent">most recently answered</option>
+  </select></label>
+</div>
 <p class="counts" id="q-filter-note"></p>
 ${order.map((g) => `<h2 id="g-${esc(g)}">${esc(label(g))}</h2>
 <div class="cards">

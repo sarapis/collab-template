@@ -220,6 +220,13 @@ aside.q.q-resolved { border-left-color: var(--success-line); opacity: .85; }
 .filter[aria-pressed="true"] { background: var(--accent); color: var(--accent-foreground);
   border-color: var(--ring); font-weight: 600; }
 .filter:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* The person menu and the sort, under the filter buttons. */
+.q-controls { align-items: center; gap: 1rem; margin-top: 0; }
+.q-control { display: inline-flex; align-items: center; gap: .4rem;
+  font-family: var(--font-sans); font-size: .82rem; color: var(--muted-foreground); }
+.q-control select { font: inherit; color: var(--foreground); background: var(--card);
+  padding: .25rem .5rem; border: 1px solid var(--border); border-radius: .4rem; }
+.q-control select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .cards[hidden], .card[hidden], h2[hidden] { display: none; }
 
 /* People. A table because it is a table: five columns of the same shape. */

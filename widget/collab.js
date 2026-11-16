@@ -155,13 +155,27 @@
     // ?open=1 is linked from the notification and written into the README, so
     // it keeps working and means what the notification means.
     if (p.get('open')) return 'waiting';
-    return 'all';
+    // Open is the default: resolved questions are settled, and a worksheet that
+    // leads with them buries what still needs an answer. "All" is ?show=all.
+    return 'open';
+  }
+
+  // "Waiting on <person>": the server marks each open card with the people it
+  // still waits on (data-waiting-people, opaque keys), by the badge's rule.
+  function currentWho() { return new URLSearchParams(location.search).get('who') || ''; }
+  function currentSort() { return new URLSearchParams(location.search).get('sort') || ''; }
+
+  function setParam(name, value) {
+    var url = new URL(location.href);
+    if (value) url.searchParams.set(name, value); else url.searchParams.delete(name);
+    history.replaceState(null, '', url);
   }
 
   function applyFilter(show) {
     var cards = Array.prototype.slice.call(document.querySelectorAll('.cards .card[data-question]'));
     if (!cards.length) return;
     var shown = 0;
+    var who = currentWho();
 
     cards.forEach(function (card) {
       var answers = currentAnswerCount(card);
@@ -170,9 +184,12 @@
       var waits = (card.getAttribute('data-waits-on') || card.getAttribute('data-audience') || '').split(' ');
       var forMe = !!(me && me.audiences && waits.some(function (g) { return me.audiences.indexOf(g) !== -1; }));
       var keep = true;
-      if (show === 'waiting') keep = forMe && !answers && !resolved;
+      if (show === 'open') keep = !resolved;
+      else if (show === 'resolved') keep = resolved;
+      else if (show === 'waiting') keep = forMe && !answers && !resolved;
       else if (show === 'unanswered') keep = !answers && !resolved;
       else if (show === 'answered') keep = answers > 0 && !resolved;
+      if (keep && who) keep = (card.getAttribute('data-waiting-people') || '').split(' ').indexOf(who) !== -1;
       card.hidden = !keep;
       if (keep) shown++;
     });
@@ -193,9 +210,39 @@
 
     var note = document.getElementById('q-filter-note');
     if (note) {
-      note.textContent = show === 'all' ? ''
+      note.textContent = show === 'all' && !who ? ''
         : shown + ' of ' + cards.length + ' shown' + (shown ? '' : ' — nothing matches this filter');
     }
+  }
+
+  // --- sorting the worksheet -------------------------------------------------
+  //
+  // "Most recently answered" lifts every card out of its topic into one list,
+  // newest answer first, unanswered last in number order; switching back puts
+  // each card back where the page had it. It needs the answers, so it runs after
+  // load() (data-last-answer is set there).
+  var homes = null;
+
+  function applySort(sort) {
+    var sorted = document.getElementById('q-sorted');
+    if (sort === 'recent') {
+      var cards = Array.prototype.slice.call(document.querySelectorAll('.cards .card[data-question]'));
+      if (!cards.length) return;
+      if (!homes) homes = cards.map(function (c) { return { card: c, parent: c.parentNode }; });
+      if (!sorted) {
+        sorted = el('div', 'cards');
+        sorted.id = 'q-sorted';
+        var note = document.getElementById('q-filter-note');
+        note.parentNode.insertBefore(sorted, note.nextSibling);
+      }
+      homes.map(function (h, i) { return { card: h.card, i: i, at: h.card.getAttribute('data-last-answer') || '' }; })
+        .sort(function (a, b) { return a.at === b.at ? a.i - b.i : (a.at < b.at ? 1 : -1); })
+        .forEach(function (x) { sorted.appendChild(x.card); });
+    } else if (homes) {
+      homes.forEach(function (h) { h.parent.appendChild(h.card); });
+      if (sorted) sorted.remove();
+    }
+    applyFilter(currentFilter());
   }
 
   function wireFilters() {
@@ -207,11 +254,28 @@
       var show = btn.getAttribute('data-show');
       var url = new URL(location.href);
       url.searchParams.delete('open');
-      if (show === 'all') url.searchParams.delete('show');
+      if (show === 'open') url.searchParams.delete('show');
       else url.searchParams.set('show', show);
       history.replaceState(null, '', url);
       applyFilter(show);
     });
+    var person = document.getElementById('q-person');
+    if (person) {
+      person.value = currentWho();
+      // A key that is not in the menu (a link from before someone left the
+      // roster) would filter to nothing with no visible reason; drop it.
+      if (person.value !== currentWho()) setParam('who', '');
+      person.addEventListener('change', function () { setParam('who', person.value); applyFilter(currentFilter()); });
+    } else if (currentWho()) setParam('who', '');
+    var sort = document.getElementById('q-sort');
+    if (sort) {
+      sort.value = currentSort();
+      sort.addEventListener('change', function () { setParam('sort', sort.value); applySort(sort.value); });
+    }
+    // Open, Resolved, All and the person menu need no answers, so apply them at
+    // once rather than flashing every question until the answers arrive.
+    var show = currentFilter();
+    if (show === 'open' || show === 'resolved' || show === 'all') applyFilter(show);
   }
 
   function mounts() {
@@ -227,6 +291,11 @@
         var qid = n.getAttribute('data-answers-for');
         var list = (data.answers && data.answers[qid]) || [];
         var opened = n.getAttribute('data-round-opened');
+        var card = n.closest('.card[data-question]');
+        if (card) {
+          var last = list.reduce(function (m, a) { var t = a.edited_at || a.created_at || ''; return t > m ? t : m; }, '');
+          if (last) card.setAttribute('data-last-answer', last); else card.removeAttribute('data-last-answer');
+        }
         n.replaceChildren();
         list.forEach(function (a) {
           var box = renderAnswer(a);
@@ -241,7 +310,7 @@
         });
         renderForm(qid, n);
       });
-      applyFilter(currentFilter());
+      if (currentSort()) applySort(currentSort()); else applyFilter(currentFilter());
       applyHash();
     });
   }

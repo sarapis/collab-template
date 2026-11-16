@@ -670,9 +670,21 @@ test('the notification link and the worksheet filter agree', () => {
   assert.match(widget, /searchParams[\s\S]{0,200}'open'/, 'the widget never reads ?open');
   const sheet = P.find((p) => p.path === '/questions/index.html');
   assert.match(sheet.html, /id="q-filters"/, 'the worksheet has no filter bar');
-  for (const mode of ['waiting', 'unanswered', 'answered']) {
+  for (const mode of ['open', 'resolved', 'waiting', 'unanswered', 'answered']) {
     assert.match(sheet.html, new RegExp(`data-show="${mode}"`), `no ${mode} filter`);
   }
+});
+
+test('the worksheet opens on Open questions, and All is a choice', () => {
+  // Resolved questions are settled; a worksheet that leads with them buries what
+  // still needs an answer. The page must say Open is pressed, and the widget must
+  // treat no ?show as Open, or the button and the list disagree on first load.
+  const sheet = P.find((p) => p.path === '/questions/index.html');
+  assert.match(sheet.html, /data-show="open" aria-pressed="true"/);
+  assert.doesNotMatch(sheet.html, /data-show="all" aria-pressed="true"/);
+  const widget = read('widget/collab.js');
+  assert.match(widget, /function currentFilter\(\)[\s\S]{0,600}return 'open';/, 'no ?show must mean Open');
+  assert.match(sheet.html, /id="q-sort"/, 'the worksheet has no sort menu');
 });
 
 test('every filter the page offers is one the widget implements', () => {

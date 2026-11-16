@@ -9,11 +9,19 @@ permalink: /questions/
 <p class="counts">Every count on this page is computed by the build. None is typed.</p>
 
 <nav class="filters" id="q-filters" aria-label="Filter questions">
-  <button class="filter" type="button" data-show="all" aria-pressed="true">All</button>
+  <button class="filter" type="button" data-show="open" aria-pressed="true">Open</button>
+  <button class="filter" type="button" data-show="resolved">Resolved</button>
+  <button class="filter" type="button" data-show="all">All</button>
   <button class="filter" type="button" data-show="waiting">Waiting for you</button>
   <button class="filter" type="button" data-show="unanswered">Unanswered</button>
   <button class="filter" type="button" data-show="answered">Answered, not folded in</button>
 </nav>
+<div class="filters q-controls">
+  <label class="q-control">Sort <select id="q-sort">
+    <option value="">by number, in topics</option>
+    <option value="recent">most recently answered</option>
+  </select></label>
+</div>
 <p class="counts" id="q-filter-note"></p>
 
 {% for group in manifest.questions | groups %}

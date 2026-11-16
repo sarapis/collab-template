@@ -3,6 +3,36 @@
 What each version changed, for an instance deciding whether and how to take it
 (`npm run template -- update <tag>`, TEMPLATE.md).
 
+## v1.15.0 — Questions: Open and Resolved, "Waiting on" a person, newest answers first
+
+**`worker/src/band.js`, `worker/src/render.js`, `widget/collab.js`,
+`site/questions.njk` and `site/site.css` change, plus tests.** No schema or
+setting changes; the compiler and `conformance/` are unchanged.
+
+- **The worksheet opens on Open questions.** Two new filters, **Open** and
+  **Resolved**, join All, Waiting for you, Unanswered and Answered. With no
+  `?show=`, the page shows Open; All is now `?show=all`. ⚠️ A link to
+  `/questions/` used to mean everything and now means the open ones; `?open=1`
+  still means "waiting for you", as the notification says.
+- **"Waiting on" a person** (band layout, signed-in viewers): a menu of the
+  roster's people with groups, each with how many open questions still wait on
+  them, by the badge's own rule (addressed to one of their groups, no answer from
+  them since the question's round opened). It combines with the buttons, and
+  `?who=` links to it.
+  - ⚠️ Only names reach the page. A person is keyed by a hash of their address,
+    never the address. The menu is computed for signed-in viewers only: on a
+    public-read site the Questions page is public and the roster's names are not
+    (the same line task pages draw).
+  - The classic layout has no roster on the server, so it gets no menu.
+- **Sort by most recently answered** (both layouts): one list across topics,
+  newest answer (or edit) first, unanswered last in number order; `?sort=recent`.
+  Switching back puts every card back in its topic.
+
+Tests: 513 → 517 (`worker/test/band.test.js`: the menu's counts, answering and
+an earlier round's answer, and no names for a stranger on a public site, each
+proven red first; `test/gate.test.js`: Open is the default and the sort menu is
+on the page).
+
 ## v1.14.0 — The assistant can run through OpenRouter
 
 **Only `worker/src/chat.js` and `worker/src/secrets.js` change, plus tests,
