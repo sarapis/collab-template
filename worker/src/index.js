@@ -13,6 +13,7 @@ import { handleAdmin } from './admin.js';
 import { handleContent } from './content.js';
 import { isBand, bandPage, wrapBuilt, viewEnv, viewFor, publicIndexFor, hostOf, commentsFor } from './band.js';
 import { groupName, waitsOn, waitsOnAny } from './waits.js';
+import { asksBackIds, setAsksBack, answerState } from './asks-back.js';
 import { tasksOn, listTasks, readTask, createTask, updateTask, taskNotifications } from './tasks.js';
 
 const json = (data, status = 200) =>
@@ -43,12 +44,17 @@ async function getAnswers(request, env, me) {
        FROM answers WHERE question_id IN (${marks}) ORDER BY created_at`
   ).bind(...ids).all();
 
+  const flagged = await asksBackIds(env);
+  const editor = isEditor(me);
   const answers = {};
   for (const r of results || []) {
+    const mine = !!me.sub && r.author_sub === me.sub;
     (answers[r.question_id] ||= []).push({
       id: r.id, body: r.body, author_name: r.author_name,
       created_at: r.created_at, edited_at: r.updated_at,
-      revision_count: r.revision_count, mine: !!me.sub && r.author_sub === me.sub,
+      revision_count: r.revision_count, mine,
+      // asks-back.js: an answer that asks a question back does not settle it.
+      asks_back: flagged.has(r.id), can_flag: mine || editor,
     });
   }
   return json({ answers });
@@ -58,8 +64,23 @@ async function postAnswer(request, env, me) {
   if (!me.can_write) return json({ error: 'not permitted' }, 403);
   const body = await readBody(request);
   if (!body?.question_id) return json({ error: 'question_id and body required' }, 400);
-  const r = await createAnswer(body.question_id, body.body, env, me);
+  const r = await createAnswer(body.question_id, body.body, env, me, { asksBack: body.asks_back === true });
   return r.ok ? json({ id: r.id }, 201) : json({ error: r.error }, 400);
+}
+
+// Mark an answer as asking a question back, or clear it (asks-back.js). Its
+// author may, and so may an editor: the flag changes what the worksheet counts,
+// not what anybody said, and the people who fold answers in are the ones who
+// notice that an "answer" was really a question.
+async function putAsksBack(request, env, me, answerId) {
+  if (!me.can_write) return json({ error: 'not permitted' }, 403);
+  const body = await readBody(request);
+  if (typeof body?.asks_back !== 'boolean') return json({ error: 'asks_back is true or false' }, 400);
+  const existing = await env.DB.prepare('SELECT * FROM answers WHERE id = ?').bind(answerId).first();
+  if (!existing) return json({ error: 'no such answer' }, 404);
+  if (existing.author_sub !== me.sub && !isEditor(me)) return json({ error: 'only its author or an editor' }, 403);
+  await setAsksBack(env, answerId, body.asks_back, me);
+  return json({ id: answerId, asks_back: body.asks_back });
 }
 
 async function patchAnswer(request, env, me, answerId) {
@@ -142,8 +163,15 @@ async function getNotifications(request, env, me) {
   const currentFor = (rows, q) => rows.some((r) => r.question_id === q.id && r.latest >= roundOpened(q));
 
   const mineRows = (answerRows || []).filter((r) => r.author_sub === me.sub);
+  // Every answer of yours counts here, one that asks back included: you have done
+  // your part, and the question now waits on whoever maintains it (asks-back.js).
   const answeredByMe = (q) => currentFor(mineRows, q);
-  const answeredByAnyone = (q) => currentFor(answerRows || [], q);
+  // ⚠️ But "answered" for everyone else means SETTLED: an answer that asks a
+  // question back leaves its question needing a reply, not ready to fold.
+  const flagged = await asksBackIds(env);
+  const { results: allAnswers } = await env.DB.prepare('SELECT id, question_id, created_at FROM answers ORDER BY created_at').all();
+  const stateOf = (q) => answerState((allAnswers || []).filter((a) => a.question_id === q.id), flagged, roundOpened(q));
+  const answeredByAnyone = (q) => stateOf(q) === 'answered';
 
   const items = [];
   const open = (manifest?.questions || []).filter((q) => !q.resolved && !q.hidden);
@@ -195,7 +223,18 @@ async function getNotifications(request, env, me) {
       });
     }
 
-    const waitingOnOthers = open.filter((q) => !answeredByAnyone(q) && !waitsOnAny(q, me.audiences));
+    // An answer that asked a question back: the reply is the editors' to give.
+    const asked = open.filter((q) => stateOf(q) === 'needs-reply');
+    if (asked.length) {
+      const fresh = asked.filter((q) => (answerRows || []).some((r) => r.question_id === q.id && r.latest > since)).length;
+      items.push({
+        kind: 'asks', forYou: true, count: asked.length, href: '/questions/?show=asks', unseen: fresh,
+        text: `${asked.length} question${asked.length === 1 ? '' : 's'} asked back, needing a reply`,
+        detail: 'An answer asked something back instead of answering. Reply, or reword the question.',
+      });
+    }
+
+    const waitingOnOthers = open.filter((q) => stateOf(q) === 'unanswered' && !waitsOnAny(q, me.audiences));
     if (waitingOnOthers.length) {
       const who = [...new Set(waitingOnOthers.flatMap((q) => waitsOn(q).map((g) => groupName(manifest, g))))];
       items.push({
@@ -268,7 +307,7 @@ async function postSeen(request, env, me) {
 // same table is how an agent ends up able to do something a person cannot, or
 // to skip a rule nobody remembered was only in the other one.
 
-async function createAnswer(questionId, body, env, me) {
+async function createAnswer(questionId, body, env, me, { asksBack = false } = {}) {
   const text = String(body || '').trim();
   if (!text) return { ok: false, error: 'body required' };
   const long = overLimit(text);
@@ -279,6 +318,7 @@ async function createAnswer(questionId, body, env, me) {
     `INSERT INTO answers (id, question_id, author_sub, author_name, body, created_at, revision_count)
      VALUES (?, ?, ?, ?, ?, ?, 0)`
   ).bind(rowId, String(questionId), me.sub, me.name, text, now()).run();
+  if (asksBack) await setAsksBack(env, rowId, true, me);
   return { ok: true, id: rowId };
 }
 
@@ -314,7 +354,7 @@ async function readComments(request, env, me, doc, since) {
 }
 
 export const MCP_HANDLERS = {
-  postAnswer: (qid, body, env, me) => createAnswer(qid, body, env, me),
+  postAnswer: (qid, body, env, me, opts) => createAnswer(qid, body, env, me, opts),
   listComments: (env, doc, since, request, me) => readComments(request, env, me, doc, since),
   replyToComment: (parentId, body, env, me) => createComment({ body, parent: parentId }, env, me),
   // The transcript is editor-only over MCP for the same reason it is on the
@@ -452,6 +492,7 @@ export const siteHandler = {
     if (p === '/api/me' && m === 'GET') return json(me);
     if (p === '/api/answers' && m === 'GET') return getAnswers(request, env, me);
     if (p === '/api/answers' && m === 'POST') return postAnswer(request, env, me);
+    if (/^\/api\/answers\/[^/]+\/asks-back$/.test(p) && m === 'PUT') return putAsksBack(request, env, me, p.split('/')[3]);
     if (p.startsWith('/api/answers/') && m === 'PATCH') return patchAnswer(request, env, me, p.split('/')[3]);
     if (p === '/api/comments' && m === 'GET') return getComments(request, env, me);
     if (p === '/api/comments' && m === 'POST') return postComment(request, env, me);

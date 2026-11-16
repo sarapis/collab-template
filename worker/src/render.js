@@ -390,6 +390,7 @@ ${q.resolved ? `<p class="q-resolved-note">resolved · see <a href="/${esc(q.doc
   <button class="filter" type="button" data-show="all">All</button>
   <button class="filter" type="button" data-show="waiting">Waiting for you</button>
   <button class="filter" type="button" data-show="unanswered">Unanswered</button>
+  <button class="filter" type="button" data-show="asks">Needs a reply</button>
   <button class="filter" type="button" data-show="answered">Answered, not folded in</button>
 </nav>
 <div class="filters q-controls">

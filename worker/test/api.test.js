@@ -6,7 +6,7 @@ import { CLASSIC } from './classic.js';
 // A stub D1 that records what was asked of it. Enough to hold the rules that
 // matter -- authorship, the revision trail, permission -- without a network.
 function db() {
-  const rows = { answers: [], answer_revisions: [], comments: [], seen: [], start_seen: [] };
+  const rows = { answers: [], answer_revisions: [], comments: [], seen: [], start_seen: [], asks: [] };
   const run = (sql, args) => {
     const s = sql.replace(/\s+/g, ' ').trim();
     if (s.startsWith('INSERT INTO answers')) rows.answers.push({ id: args[0], question_id: args[1], author_sub: args[2], author_name: args[3], body: args[4], created_at: args[5], revision_count: 0, updated_at: null });
@@ -20,6 +20,10 @@ function db() {
     else if (s.startsWith('INSERT INTO start_seen')) {
       if (!rows.start_seen.some((r) => r.sub === args[0])) rows.start_seen.push({ sub: args[0], at: args[1] });
     }
+    else if (s.startsWith('INSERT INTO answer_asks_back')) {
+      if (!rows.asks.some((r) => r.answer_id === args[0])) rows.asks.push({ answer_id: args[0], set_by: args[1], set_at: args[2] });
+    }
+    else if (s.startsWith('DELETE FROM answer_asks_back')) rows.asks = rows.asks.filter((r) => r.answer_id !== args[0]);
     else if (s.startsWith('UPDATE answers SET body')) {
       const a = rows.answers.find((r) => r.id === args[2]);
       if (a) { a.body = args[0]; a.updated_at = args[1]; a.revision_count += 1; }
@@ -30,6 +34,8 @@ function db() {
     const s = sql.replace(/\s+/g, ' ').trim();
     // A query with no bound ids wants every row -- the notifications endpoint
     // reads the whole answers table to work out who has answered what.
+    if (s.startsWith('SELECT answer_id FROM answer_asks_back')) return { results: rows.asks };
+    if (s.startsWith('SELECT id, question_id, created_at FROM answers')) return { results: rows.answers };
     if (s.includes('FROM answers')) {
       if (!args.length) {
         // The notifications query groups by question and author, keeping the
@@ -381,4 +387,58 @@ test('work waiting on somebody else never raises the badge', async () => {
   const n = await worker.fetch(as('devin@example.org', { path: '/api/notifications' }), e).then((r) => r.json());
   assert.equal(n.total, 0);
   assert.equal(n.items.find((i) => i.kind === 'others').count, 1);
+});
+
+// --- an answer that asks a question back (asks-back.js) ------------------------
+
+const post = (who, body, e) => worker.fetch(as(who, { path: '/api/answers', method: 'POST', body }), e).then((r) => r.json());
+const notes = (who, e) => worker.fetch(as(who, { path: '/api/notifications' }), e).then((r) => r.json());
+const item = (n, kind) => n.items.find((i) => i.kind === kind);
+
+test('an answer that asks back is on the record but does not answer the question', async () => {
+  const D = db();
+  const e = withManifest(D, [Q('p:a', 'olivia')]);
+  await post('olivia@example.org', { question_id: 'p:a', body: 'What does this mean?', asks_back: true }, e);
+  const got = await worker.fetch(as('devin@example.org', { path: '/api/answers?q=p:a' }), e).then((r) => r.json());
+  // The flag must be THERE before anything is concluded from its effects.
+  assert.equal(got.answers['p:a'].length, 1);
+  assert.equal(got.answers['p:a'][0].asks_back, true);
+  const n = await notes('devin@example.org', e);
+  assert.equal(item(n, 'fold'), undefined, 'a question asked back is not ready to fold');
+  assert.equal(item(n, 'asks').count, 1);
+  assert.equal(item(n, 'asks').href, '/questions/?show=asks');
+});
+
+test('whoever asked back has done their part: it stops waiting for them', async () => {
+  const e = withManifest(db(), [Q('p:a', 'devin'), Q('p:b', 'devin')]);
+  await post('devin@example.org', { question_id: 'p:a', body: 'Which form?', asks_back: true }, e);
+  assert.equal(item(await notes('devin@example.org', e), 'waiting').count, 1);
+});
+
+test('a real answer after the question back makes it answered again', async () => {
+  const e = withManifest(db(), [Q('p:a', 'olivia')]);
+  await post('olivia@example.org', { question_id: 'p:a', body: 'What does this mean?', asks_back: true }, e);
+  await new Promise((r) => setTimeout(r, 5));
+  await post('devin@example.org', { question_id: 'p:a', body: 'It means the import.' }, e);
+  const n = await notes('devin@example.org', e);
+  assert.equal(item(n, 'asks'), undefined);
+  assert.equal(item(n, 'fold').count, 1);
+});
+
+test('the author or an editor can mark an answer as asking back; nobody else can', async () => {
+  const D = db();
+  const e = withManifest(D, [Q('p:a', 'devin')]);
+  const { id } = await post('guest@example.org', { question_id: 'p:a', body: 'Not sure what this means.' }, e);
+  const flag = (who, on) => worker.fetch(as(who, { path: `/api/answers/${id}/asks-back`, method: 'PUT', body: { asks_back: on } }), e);
+  assert.equal((await flag('guest@example.org', true)).status, 200, 'its author');
+  assert.equal(D.rows.asks.length, 1);
+  assert.equal((await flag('olivia@example.org', false)).status, 200, 'an editor');
+  assert.equal(D.rows.asks.length, 0);
+  // A second ordinary member may not reclassify someone else's words.
+  USERS.push({ email: 'other@example.org', name: 'Other', role: 'user', audiences: '["devin"]', disabled_at: null });
+  try {
+    assert.equal((await flag('other@example.org', true)).status, 403);
+    assert.equal(D.rows.asks.length, 0);
+  } finally { USERS.pop(); }
+  assert.equal((await worker.fetch(as('guest@example.org', { path: `/api/answers/${id}/asks-back`, method: 'PUT', body: { asks_back: 'yes' } }), e)).status, 400);
 });

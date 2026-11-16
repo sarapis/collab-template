@@ -12,6 +12,7 @@ import { viewEnv } from './band.js';
 import { flag } from './flag.js';
 import { canRead } from './identity.js';
 import { waitsOn } from './waits.js';
+import { asksBackIds } from './asks-back.js';
 import { tasksOn, listTasks, readTask, createTask, updateTask } from './tasks.js';
 
 // Tasks (tasks.enabled; worker/src/tasks.js), listed only where they are on.
@@ -42,7 +43,7 @@ const TOOLS = [
   { name: 'read_document', description: 'The markdown source of one document, as a contributor would edit it.', inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] } },
   { name: 'list_questions', description: 'The question catalog with its answers. Filter by open, audience, or who a question is waiting on.', inputSchema: { type: 'object', properties: { open: { type: 'boolean' }, audience: { type: 'string' }, waiting_on: { type: 'string', description: 'A group or addressee key' } } } },
   { name: 'read_question', description: 'One question, its provenance, and every answer with edit history.', inputSchema: { type: 'object', properties: { number: { type: 'number' }, slug: { type: 'string' } } } },
-  { name: 'post_answer', description: 'Answer a question as the authenticated person. Say what you are posting first.', inputSchema: { type: 'object', properties: { slug: { type: 'string' }, body: { type: 'string' } }, required: ['slug', 'body'] } },
+  { name: 'post_answer', description: 'Answer a question as the authenticated person. Say what you are posting first. Set asks_back when the post asks something back (a clarification, "what does this mean?") instead of answering: it is kept on the record but leaves the question needing a reply rather than answered.', inputSchema: { type: 'object', properties: { slug: { type: 'string' }, body: { type: 'string' }, asks_back: { type: 'boolean' } }, required: ['slug', 'body'] } },
   { name: 'list_comments', description: 'What users have said unprompted, newest last. Read this before deciding what to work on.', inputSchema: { type: 'object', properties: { doc: { type: 'string' }, since: { type: 'string' } } } },
   { name: 'reply_to_comment', description: 'Reply to a comment as the authenticated person.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, body: { type: 'string' } }, required: ['id', 'body'] } },
   { name: 'get_design_tokens', description: 'This project’s design system, so generated interface is on-system.', inputSchema: { type: 'object', properties: {} } },
@@ -73,8 +74,9 @@ async function answersFor(env, ids) {
     `SELECT id, question_id, author_name, body, created_at, updated_at, revision_count
        FROM answers WHERE question_id IN (${marks}) ORDER BY created_at`
   ).bind(...ids).all();
+  const flagged = await asksBackIds(env);
   const out = {};
-  for (const r of results || []) (out[r.question_id] ||= []).push(r);
+  for (const r of results || []) (out[r.question_id] ||= []).push({ ...r, asks_back: flagged.has(r.id) });
   return out;
 }
 
@@ -106,7 +108,7 @@ async function call(name, args, env, request, me, handlers) {
         document: q.doc, section: q.section, resolved: q.resolved || null,
         question: q.body.replace(/<[^>]+>/g, '').trim(),
         why_asked: q.why ? q.why.replace(/<[^>]+>/g, '').trim() : null,
-        answers: (answers[q.id] || []).map((a) => ({ by: a.author_name, at: a.created_at, body: a.body, edits: a.revision_count })),
+        answers: (answers[q.id] || []).map((a) => ({ by: a.author_name, at: a.created_at, body: a.body, edits: a.revision_count, asks_back: a.asks_back })),
       })));
     }
 
@@ -121,8 +123,8 @@ async function call(name, args, env, request, me, handlers) {
       if (!me.can_write) return text('Not permitted: this token cannot write.');
       const q = find({ slug: args.slug });
       if (!q) return text(`No question "${args.slug}".`);
-      const r = await handlers.postAnswer(q.id, args.body, env, me);
-      return text(r.ok ? `Posted as ${me.name} against Q${q.number}.` : `Not posted: ${r.error}`);
+      const r = await handlers.postAnswer(q.id, args.body, env, me, { asksBack: args.asks_back === true });
+      return text(r.ok ? `Posted as ${me.name} against Q${q.number}${args.asks_back === true ? ', marked as asking back' : ''}.` : `Not posted: ${r.error}`);
     }
 
     case 'list_comments': {

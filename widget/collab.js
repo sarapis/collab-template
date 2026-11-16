@@ -61,7 +61,7 @@
   }
 
   function renderAnswer(a) {
-    var box = el('div', 'q-answer');
+    var box = el('div', 'q-answer' + (a.asks_back ? ' q-answer-asks' : ''));
     var who = el('p', 'who');
     who.textContent = (a.author_name || 'someone') + ' · ' + when(a.created_at);
     if (a.revision_count > 0) {
@@ -70,12 +70,36 @@
       var ed = el('span', 'q-edited', ' · edited ' + a.revision_count + '×');
       who.appendChild(ed);
     }
+    // An answer that asks a question back is on the record but does not settle
+    // the question (worker/src/asks-back.js), so it says so to every reader.
+    if (a.asks_back) who.appendChild(el('span', 'q-asks', 'asks back'));
     var body = el('div', 'q-answer-body');
     body.textContent = a.body;
     box.appendChild(who);
     box.appendChild(body);
-    if (a.mine) box.appendChild(editButton(a, body));
+    if (a.mine || a.can_flag) {
+      var tools = el('p', 'q-answer-tools');
+      if (a.mine) tools.appendChild(editButton(a, body));
+      if (a.can_flag) tools.appendChild(asksBackButton(a));
+      box.appendChild(tools);
+    }
     return box;
+  }
+
+  // Its author or an editor can say an answer was really a question back (or
+  // take that back). It changes what the worksheet counts, never the words.
+  function asksBackButton(a) {
+    var b = el('button', 'btn btn-quiet', a.asks_back ? 'It answers the question' : 'It asks a question back');
+    b.type = 'button';
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      api('/api/answers/' + encodeURIComponent(a.id) + '/asks-back', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ asks_back: !a.asks_back }),
+      }).then(function () { load(); }).catch(function () { b.disabled = false; });
+    });
+    return b;
   }
 
   function editButton(a, bodyNode) {
@@ -112,6 +136,13 @@
     ta.placeholder = 'Answer this';
     var btn = el('button', 'btn', 'Post answer');
     var msg = msgNode();
+    // "Not sure what this means" is not an answer. Ticked, the post stays on the
+    // record and the question goes back to whoever maintains it.
+    var asks = el('label', 'q-asks-choice');
+    var box = el('input');
+    box.type = 'checkbox';
+    asks.appendChild(box);
+    asks.appendChild(document.createTextNode(' This asks a question back instead of answering'));
     btn.type = 'button';
     btn.addEventListener('click', function () {
       var body = ta.value.trim();
@@ -121,11 +152,12 @@
       api('/api/answers', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ question_id: qid, body: body }),
-      }).then(function () { ta.value = ''; btn.disabled = false; load(); })
+        body: JSON.stringify({ question_id: qid, body: body, asks_back: box.checked }),
+      }).then(function () { ta.value = ''; box.checked = false; btn.disabled = false; load(); })
         .catch(function (err) { btn.disabled = false; say(msg, why(err, 'Not posted. Try again.')); });
     });
     form.appendChild(ta);
+    form.appendChild(asks);
     form.appendChild(btn);
     form.appendChild(msg);
     mount.appendChild(form);
@@ -140,13 +172,19 @@
   // ⚠️ An answer written before its question's current round does not count.
   // A question reworded after somebody answered it is unanswered again, and the
   // filter has to agree with the notification that sent them here.
-  function currentAnswerCount(card) {
+  // The worker's rule (worker/src/asks-back.js), from the answers on the card:
+  // only the current round's count; none is unanswered; the newest asking a
+  // question back needs a reply; otherwise answered.
+  function answerState(card) {
     var mount = card.querySelector('[data-answers-for]');
-    if (!mount) return 0;
+    if (!mount) return 'unanswered';
     // Answers marked stale replied to an earlier wording of the question, and
     // renderAnswer has already labelled them. They do not make it answered.
-    return Array.prototype.slice.call(mount.querySelectorAll('.q-answer'))
-      .filter(function (a) { return !a.classList.contains('q-answer-stale'); }).length;
+    var current = Array.prototype.slice.call(mount.querySelectorAll('.q-answer'))
+      .filter(function (a) { return !a.classList.contains('q-answer-stale'); });
+    if (!current.length) return 'unanswered';
+    // load() appends them oldest first, so the newest is the last.
+    return current[current.length - 1].classList.contains('q-answer-asks') ? 'needs-reply' : 'answered';
   }
 
   function currentFilter() {
@@ -178,7 +216,7 @@
     var who = currentWho();
 
     cards.forEach(function (card) {
-      var answers = currentAnswerCount(card);
+      var state = answerState(card);
       var resolved = card.getAttribute('data-resolved') === 'true';
       // Who it waits on: `to=` when the question has it, else its audience (worker/src/waits.js).
       var waits = (card.getAttribute('data-waits-on') || card.getAttribute('data-audience') || '').split(' ');
@@ -186,9 +224,10 @@
       var keep = true;
       if (show === 'open') keep = !resolved;
       else if (show === 'resolved') keep = resolved;
-      else if (show === 'waiting') keep = forMe && !answers && !resolved;
-      else if (show === 'unanswered') keep = !answers && !resolved;
-      else if (show === 'answered') keep = answers > 0 && !resolved;
+      else if (show === 'waiting') keep = forMe && state === 'unanswered' && !resolved;
+      else if (show === 'unanswered') keep = state === 'unanswered' && !resolved;
+      else if (show === 'asks') keep = state === 'needs-reply' && !resolved;
+      else if (show === 'answered') keep = state === 'answered' && !resolved;
       if (keep && who) keep = (card.getAttribute('data-waiting-people') || '').split(' ').indexOf(who) !== -1;
       card.hidden = !keep;
       if (keep) shown++;

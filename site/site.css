@@ -170,6 +170,16 @@ aside.q.q-resolved { border-left-color: var(--success-line); opacity: .85; }
 .q-answer { border-top: 1px solid var(--border); margin-top: .6rem; padding-top: .5rem; }
 .q-answer .who { color: var(--muted-foreground); font-size: .76rem; }
 .q-edited { color: var(--warning-line); }
+/* An answer that asks a question back (worker/src/asks-back.js): on the record,
+   but not an answer, so it is marked where every reader sees it. */
+.q-asks { margin-left: .4rem; padding: 0 .4rem; border-radius: 999px; font-size: .72rem;
+  background: var(--accent); color: var(--accent-foreground); }
+.q-answer-asks { border-left: 3px solid var(--accent-foreground); padding-left: .6rem; }
+.q-answer-tools { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0 0; }
+.q-answer-tools .btn { margin-top: 0; }
+.btn.btn-quiet { background: var(--card); color: var(--muted-foreground); }
+.btn.btn-quiet:hover { color: var(--foreground); border-color: var(--ring); }
+.q-asks-choice { font-family: var(--font-sans); font-size: .8rem; color: var(--muted-foreground); }
 .q-form textarea, .rail textarea { width: 100%; font: inherit; font-family: var(--font-sans); border: 1px solid var(--border);
   border-radius: var(--radius); padding: .4rem; background: var(--background); color: var(--foreground); }
 .q-form button, .btn { font-family: var(--font-sans); font-size: .85rem; border: 1px solid var(--border); background: var(--primary);

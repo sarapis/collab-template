@@ -14,6 +14,15 @@ CREATE TABLE IF NOT EXISTS answers (
 );
 CREATE INDEX IF NOT EXISTS answers_by_question ON answers(question_id, created_at);
 
+-- An answer that asks a question back instead of answering it (v1.16.0,
+-- worker/src/asks-back.js). A row here means the answer does not settle its
+-- question. Beside the answers, not a column: this file runs on every deploy.
+CREATE TABLE IF NOT EXISTS answer_asks_back (
+  answer_id TEXT PRIMARY KEY,
+  set_by    TEXT NOT NULL,
+  set_at    TEXT NOT NULL
+);
+
 -- Append-only. An answer is evidence a document quotes, so a silent rewrite
 -- could leave a passage resting on text that no longer justifies it.
 CREATE TABLE IF NOT EXISTS answer_revisions (
